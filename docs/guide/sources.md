@@ -19,6 +19,7 @@ flowchart TD
     Q --> G[BASE]
     Q --> H[CORE]
     Q --> N[NASA ADS]
+    Q --> NT[NASA NTRS]
     Q --> IEEE[IEEE Xplore]
     Q --> Z[Zenodo]
     Q --> CR[Crossref]
@@ -28,7 +29,7 @@ flowchart TD
     Q --> PMC[PubMed Central]
     Q --> PED[PEDro]
     Q --> SC[Scopus]
-    A & B & C & SP & SPN & D & E & F & G & H & N & IEEE & Z & CR & DBLP & HAL & PM & PMC & PED & SC --> I{Deduplicate\nby DOI}
+    A & B & C & SP & SPN & D & E & F & G & H & N & NT & IEEE & Z & CR & DBLP & HAL & PM & PMC & PED & SC --> I{Deduplicate\nby DOI}
     I --> J[Result table]
     J -->|download| K{Has pdf_url?}
     K -- yes --> L[(Local disk)]
@@ -278,6 +279,28 @@ api_key = "YOUR_TOKEN"
 ::: tip CLI shorthand
 ```bash
 mosaic search "gravitational waves" --source ads
+```
+:::
+
+## NASA NTRS (Scientific and Technical Information Repository)
+
+| Property | Value |
+|----------|-------|
+| Auth | None |
+| Content | NASA technical reports, conference papers, contractor documents and other STI records — strong for aerospace, propulsion, materials, fluid mechanics and structures |
+| PDF | Direct download of public attachments listed in the record (`downloads[]`) |
+| Rate limit | 500 req / 15 min |
+| Base URL | `https://ntrs.nasa.gov/api/citations` |
+
+NASA NTRS is NASA's public repository of scientific and technical information — distinct from NASA ADS, which indexes astronomy literature. NTRS is particularly valuable for engineering grey literature: technical memoranda, contractor reports, and conference papers that never appear in journal databases.
+
+Only records with `distribution = PUBLIC` are returned. Records whose metadata is public but whose full text is restricted (`disseminated = METADATA_ONLY`) are kept as bibliographic entries without a PDF link. When a record exposes multiple attachments, MOSAIC prefers `STI`-type PDF attachments and keeps every public PDF link as a fallback download candidate.
+
+Most NTRS records have no DOI — MOSAIC assigns them a stable `ntrs:{id}` identity instead of a title-based key, so re-searches deduplicate correctly and a record that later gains a DOI merges into the same entry.
+
+::: tip CLI shorthand
+```bash
+mosaic search "turbine blade cooling" --source ntrs --max 30
 ```
 :::
 

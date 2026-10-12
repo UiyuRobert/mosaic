@@ -37,7 +37,25 @@ class SourceError(MosaicError):
 
 
 class DownloadError(MosaicError):
-    """Raised when a PDF download fails."""
+    """Raised when a PDF download fails.
+
+    ``reason`` carries a machine-readable category for retry/limit logic:
+    ``not_found | access_denied | rate_limited | server_error | timeout |
+    dns_error | unreachable | invalid_pdf | html_response | too_small |
+    empty | missing_eof | unparseable | disk_full | exists | cancelled |
+    unsafe_url``.
+    """
+
+    def __init__(self, reason: str, detail: str = "", retry_after: float | None = None):
+        self.reason = reason
+        self.retry_after = retry_after
+        super().__init__(detail or reason)
+
+
+# DownloadError reasons that are worth a bounded retry (transient).
+TRANSIENT_REASONS = frozenset(
+    {"timeout", "server_error", "rate_limited", "unreachable", "dns_error"}
+)
 
 
 class ConfigError(MosaicError):

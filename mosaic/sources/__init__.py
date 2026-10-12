@@ -10,6 +10,7 @@ from mosaic.sources.europepmc import EuropePMCSource
 from mosaic.sources.hal import HALSource
 from mosaic.sources.ieee import IEEEXploreSource
 from mosaic.sources.nasa_ads import NASAADSSource
+from mosaic.sources.ntrs import NTRSSource
 from mosaic.sources.openalex import OpenAlexSource
 from mosaic.sources.pedro import PEDroSource
 from mosaic.sources.pmc import PMCSource
@@ -36,6 +37,7 @@ __all__ = [
     "HALSource",
     "IEEEXploreSource",
     "NASAADSSource",
+    "NTRSSource",
     "OpenAlexSource",
     "PEDroSource",
     "PMCSource",

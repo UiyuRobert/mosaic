@@ -54,10 +54,32 @@
 {% endif %}
 
 {% set has_citations = papers | selectattr('citation_count') | list %}
+<form id="batch-dl-form">
+  {% if job_id is defined and job_id %}<input type="hidden" name="job_id" value="{{ job_id }}">{% endif %}
+  <div class="export-bar">
+    <strong>Download:</strong>
+    <button type="submit" name="mode" value="selected" class="outline"
+            hx-post="{{ url_for('ui.downloads_enqueue') }}"
+            hx-target="#dl-enqueue-status" hx-swap="innerHTML">
+      Selected (<span id="sel-count">0</span>)
+    </button>
+    {% if job_id is defined and job_id %}
+    <button type="submit" name="mode" value="all" class="outline secondary"
+            hx-post="{{ url_for('ui.downloads_enqueue') }}"
+            hx-target="#dl-enqueue-status" hx-swap="innerHTML">
+      All {{ papers | length }} papers
+    </button>
+    {% endif %}
+    <label style="margin:0;font-weight:normal;">
+      <input type="checkbox" id="select-all-cb"> all
+    </label>
+  </div>
+  <div id="dl-enqueue-status"></div>
 <figure>
 <table role="grid" id="results-table">
   <thead>
     <tr>
+      <th></th>
       <th>#</th>
       <th>Title</th>
       <th>Authors</th>
@@ -65,12 +87,14 @@
       <th>Source</th>
       <th>OA</th>
       <th>PDF</th>
+      <th>Local</th>
       {% if has_citations %}<th>Cited</th>{% endif %}
     </tr>
   </thead>
   <tbody>
     {% for p in papers %}
     <tr class="result-row">
+      <td><input type="checkbox" name="uid" value="{{ p.uid }}" class="uid-cb"></td>
       <td>{{ loop.index }}</td>
       <td><a href="{{ url_for('ui.paper_detail', uid=p.uid) }}">{{ p.title[:80] }}{% if p.title | length > 80 %}&hellip;{% endif %}</a></td>
       <td>{{ p.short_authors }}</td>
@@ -78,6 +102,7 @@
       <td>{{ p.source }}</td>
       <td>{% if p.is_open_access %}<span class="badge-oa">&#10003;</span>{% else %}<span class="badge-closed">&ndash;</span>{% endif %}</td>
       <td>{% if p.pdf_url %}<span class="badge-oa">&#10003;</span>{% else %}&ndash;{% endif %}</td>
+      <td>{% if p.uid in downloaded_uids %}<span class="badge-oa" title="PDF downloaded">&#128190;</span>{% else %}&ndash;{% endif %}</td>
       {% if has_citations %}
       <td>{% if p.citation_count is not none %}{{ p.citation_count }}{% else %}&ndash;{% endif %}</td>
       {% endif %}
@@ -86,6 +111,31 @@
   </tbody>
 </table>
 </figure>
+</form>
+<script>
+(function(){
+  var cbs = document.querySelectorAll("#results-table .uid-cb");
+  var counter = document.getElementById("sel-count");
+  var allCb = document.getElementById("select-all-cb");
+  function update() {
+    counter.textContent = Array.prototype.filter.call(cbs, function(c){return c.checked}).length;
+  }
+  cbs.forEach(function(c){ c.addEventListener("change", update); });
+  if (allCb) allCb.addEventListener("change", function(){
+    cbs.forEach(function(c){ c.checked = allCb.checked; }); update();
+  });
+  var form = document.getElementById("batch-dl-form");
+  form.addEventListener("htmx:confirm", function(e){
+    var btn = e.detail.elt;
+    if (btn && btn.name === "mode" && btn.value === "selected") {
+      if (counter.textContent === "0" ||
+          !confirm("Download " + counter.textContent + " selected paper(s)?")) {
+        e.preventDefault();
+      }
+    }
+  });
+})();
+</script>
 
 {% if papers | length > 25 %}
 <nav id="pagination" style="display:flex;gap:.5rem;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:1rem;">

@@ -313,3 +313,128 @@ class TestHistoryFilters:
         assert resp.status_code == 200
         assert b'value="2023"' in resp.data
         assert b'value="Smith"' in resp.data
+
+
+class TestDownloadQueue:
+    """Tests for the persistent download-queue UI routes."""
+
+    def test_downloads_page(self, client):
+        resp = client.get("/downloads")
+        assert resp.status_code == 200
+        assert b"Download Queue" in resp.data
+
+    def test_downloads_table_empty(self, client):
+        resp = client.get("/downloads/table")
+        assert resp.status_code == 200
+        assert b"No download jobs" in resp.data
+
+    def test_enqueue_selected_papers(self, client, app):
+        from flask import current_app
+
+        paper = _make_paper()
+        with app.app_context():
+            current_app.config["MOSAIC_CACHE"].save(paper)
+
+        resp = client.post("/downloads/enqueue", data={"mode": "selected", "uid": paper.uid})
+        assert resp.status_code == 200
+        assert b"queued" in resp.data
+
+        with app.app_context():
+            jobs = current_app.config["MOSAIC_CACHE"].list_jobs()
+        assert len(jobs) == 1
+        assert jobs[0]["paper_uid"] == paper.uid
+        assert jobs[0]["status"] in ("QUEUED", "DOWNLOADING", "RETRY_WAIT", "COMPLETED", "FAILED")
+
+    def test_enqueue_nothing_selected(self, client):
+        resp = client.post("/downloads/enqueue", data={"mode": "selected"})
+        assert resp.status_code == 200
+        assert b"Nothing to download" in resp.data
+
+    def test_enqueue_all_mode_uses_export_store(self, client, app):
+        from flask import current_app
+
+        paper = _make_paper()
+        with app.app_context():
+            current_app.config["export_job-abc"] = [paper]
+        resp = client.post("/downloads/enqueue", data={"mode": "all", "job_id": "job-abc"})
+        assert resp.status_code == 200
+        assert b"queued" in resp.data
+
+    def test_pause_resume_cancel_cycle(self, client, app):
+        from flask import current_app
+
+        paper = _make_paper()
+        with app.app_context():
+            current_app.config["MOSAIC_CACHE"].save(paper)
+        client.post("/downloads/enqueue", data={"mode": "selected", "uid": paper.uid})
+        with app.app_context():
+            job = current_app.config["MOSAIC_CACHE"].list_jobs()[0]
+        jid = job["job_id"]
+
+        resp = client.post(f"/downloads/{jid}/pause")
+        assert resp.status_code == 200
+        with app.app_context():
+            assert current_app.config["MOSAIC_CACHE"].get_job(jid)["status"] in (
+                "PAUSED",
+                "CANCELLED",
+                "FAILED",
+                "COMPLETED",
+            )
+
+        resp = client.post(f"/downloads/{jid}/cancel")
+        assert resp.status_code == 200
+        with app.app_context():
+            assert current_app.config["MOSAIC_CACHE"].get_job(jid)["status"] == "CANCELLED"
+
+    def test_retry_requeues_terminal_job(self, client, app):
+        from flask import current_app
+
+        paper = _make_paper()
+        with app.app_context():
+            cache = current_app.config["MOSAIC_CACHE"]
+            cache.save(paper)
+        client.post("/downloads/enqueue", data={"mode": "selected", "uid": paper.uid})
+        with app.app_context():
+            jid = current_app.config["MOSAIC_CACHE"].list_jobs()[0]["job_id"]
+            current_app.config["MOSAIC_CACHE"].update_job(jid, status="FAILED")
+
+        resp = client.post(f"/downloads/{jid}/retry")
+        assert resp.status_code == 200
+        with app.app_context():
+            assert current_app.config["MOSAIC_CACHE"].get_job(jid)["status"] in (
+                "QUEUED",
+                "DOWNLOADING",
+                "RETRY_WAIT",
+                "FAILED",
+            )
+
+    def test_clear_removes_records(self, client, app):
+        from flask import current_app
+
+        paper = _make_paper()
+        with app.app_context():
+            cache = current_app.config["MOSAIC_CACHE"]
+            cache.save(paper)
+        client.post("/downloads/enqueue", data={"mode": "selected", "uid": paper.uid})
+        with app.app_context():
+            jid = current_app.config["MOSAIC_CACHE"].list_jobs()[0]["job_id"]
+            current_app.config["MOSAIC_CACHE"].update_job(jid, status="COMPLETED")
+
+        resp = client.post("/downloads/clear", data={"status": "COMPLETED"})
+        assert resp.status_code == 200
+        with app.app_context():
+            assert current_app.config["MOSAIC_CACHE"].get_job(jid) is None
+
+    def test_results_include_checkboxes(self, client, app):
+        """Result rows render batch-download checkboxes."""
+        with app.test_request_context():
+            rendered = app.jinja_env.get_template("partials/results.html").render(
+                papers=[_make_paper()],
+                errors=[],
+                stats={},
+                job_id="j1",
+                downloaded_uids=set(),
+                version="t",
+            )
+        assert 'name="uid"' in rendered
+        assert 'mode" value="selected' in rendered or 'value="selected"' in rendered

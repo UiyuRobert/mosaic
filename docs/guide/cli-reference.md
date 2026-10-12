@@ -358,6 +358,37 @@ mosaic get --from refs.bib --download-dir ~/papers
 
 ---
 
+### `downloads`
+
+Manage the persistent download queue — list jobs, pause/resume/cancel, retry failures, and clean up records. Queued jobs survive application restarts; clearing records never deletes downloaded PDFs.
+
+```
+mosaic downloads COMMAND
+```
+
+| Command | Options | Description |
+|---------|---------|-------------|
+| `list` | `--status/-s`, `--limit/-n` | List download jobs, newest first |
+| `status` | | Aggregate queue stats and backend health (configured vs effective backend, aria2 RPC) |
+| `pause` | `JOB_ID` or `--all` | Pause one or all active downloads |
+| `resume` | `JOB_ID` or `--all` | Resume one or all paused downloads |
+| `retry` | `JOB_ID` or `--failed` | Requeue a failed/cancelled job, or every FAILED job |
+| `cancel` | `JOB_ID` or `--all` | Cancel one or all active downloads |
+| `clear` | `--completed`, `--failed`, `--cancelled`, `--all` | Remove job records — PDFs are never deleted |
+
+**Examples:**
+
+```bash
+mosaic downloads list                    # show the queue
+mosaic downloads status                  # backend + totals
+mosaic downloads pause --all             # pause everything
+mosaic downloads resume --all
+mosaic downloads retry --failed          # retry all failures
+mosaic downloads clear --completed       # drop completed records
+```
+
+---
+
 ### `index`
 
 Build or update the local vector index for semantic search and RAG.
@@ -610,6 +641,16 @@ mosaic config [OPTIONS]
 | `--db-path TEXT` | str | Set SQLite cache path |
 | `--filename-pattern TEXT` | str | Set PDF filename pattern (see below) |
 | `--rate-limit-delay FLOAT` | float | Set default delay between API calls in seconds |
+| `--download-backend TEXT` | str | Download backend: `native`, `aria2`, or `auto` |
+| `--max-concurrent INT` | int | Max simultaneous downloads across the queue (default: 4) |
+| `--per-host-concurrent INT` | int | Max simultaneous downloads per host (default: 1) |
+| `--per-host-delay FLOAT` | float | Seconds between download starts on one host (default: 1.5) |
+| `--max-tries INT` | int | Attempts per download job (default: 3) |
+| `--verify-pdf / --no-verify-pdf` | bool | Validate PDFs before marking a job complete (default: on) |
+| `--skip-existing / --no-skip-existing` | bool | Skip papers whose PDF is already on disk (default: on) |
+| `--aria2-rpc-url TEXT` | str | aria2 JSON-RPC URL (loopback only, default `http://127.0.0.1:6800/jsonrpc`) |
+| `--aria2-rpc-secret TEXT` | str | aria2 RPC secret (stored in config; keep empty to auto-generate) |
+| `--aria2-fallback / --no-aria2-fallback` | bool | Silently fall back to native when aria2 is unavailable |
 | **Obsidian** | | |
 | `--obsidian-vault TEXT` | str | Set Obsidian vault path |
 | `--obsidian-subfolder TEXT` | str | Set subfolder inside vault for paper notes |

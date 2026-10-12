@@ -17,6 +17,7 @@ from mosaic.sources import (
     HALSource,
     IEEEXploreSource,
     NASAADSSource,
+    NTRSSource,
     OpenAlexSource,
     PEDroSource,
     PMCSource,
@@ -45,6 +46,7 @@ SRC_MAP: dict[str, str] = {
     "sp": "Springer",
     "springer": "Springer Nature",
     "ads": "NASA ADS",
+    "ntrs": "NASA NTRS",
     "ieee": "IEEE Xplore",
     "zenodo": "Zenodo",
     "crossref": "Crossref",
@@ -70,6 +72,7 @@ SHORTHAND_TO_CFG_KEY: dict[str, str] = {
     "sp": "springer",
     "springer": "springer_api",
     "ads": "nasa_ads",
+    "ntrs": "ntrs",
     "ieee": "ieee",
     "zenodo": "zenodo",
     "crossref": "crossref",
@@ -136,6 +139,10 @@ def _make_springer_browser(_cfg: dict, _src: dict) -> BaseSource | None:
     return browser if browser.available() else None
 
 
+def _make_ntrs(_cfg: dict, src: dict) -> BaseSource:
+    return NTRSSource(delay=src.get("rate_limit_delay", 1.0))
+
+
 def _make_scopus(_cfg: dict, src: dict) -> BaseSource | None:
     api_key = src.get("api_key", "")
     inst_token = src.get("inst_token", "")
@@ -159,6 +166,7 @@ _SOURCE_REGISTRY: list[tuple[str, _Factory]] = [
     ("base", _no_args(BASESource)),
     ("core", _api_key(CORESource)),
     ("nasa_ads", _api_key(NASAADSSource)),
+    ("ntrs", _make_ntrs),
     ("ieee", _api_key(IEEEXploreSource)),
     ("zenodo", _api_key(ZenodoSource)),
     ("crossref", _email(CrossrefSource)),

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from mosaic.db import Cache
 from mosaic.downloader import download as dl_paper
+from mosaic.errors import DownloadError
 from mosaic.models import Paper
 
 log = logging.getLogger(__name__)
@@ -26,20 +27,53 @@ def download_papers(
     papers: list[Paper],
     cfg: dict,
     cache: Cache,
+    *,
+    progress_cb=None,
 ) -> dict[str, str]:
-    """Download PDFs for *papers*.
+    """Download PDFs for *papers* via the persistent download queue.
+
+    When the configured backend resolves to aria2 the jobs go through the
+    ``download_jobs`` queue (concurrency, retries, resume); the native
+    backend keeps the original sequential behaviour but gains the hardened
+    fetch→verify→rename pipeline.
 
     Returns:
         A ``{paper.uid: local_path}`` mapping for successful downloads.
     """
+    dl_cfg = cfg.get("download", {})
+    backend = dl_cfg.get("backend", "auto")
+
+    if backend in ("aria2", "auto"):
+        from mosaic.dlqueue import get_manager
+
+        manager = get_manager(cfg, cache)
+        eligible = [p for p in papers if p.pdf_url or p.doi or p.pdf_candidates or p.ntrs_id]
+        job_ids = manager.enqueue_papers(eligible)
+        if not job_ids:
+            return {}
+        if (
+            backend == "aria2"
+            and not manager.aria2_available
+            and not dl_cfg.get("aria2_fallback_native")
+        ):
+            # aria2 explicitly requested but unavailable — fail loudly.
+            for job_id in job_ids:
+                manager.cancel(job_id)
+            raise DownloadError(
+                "unreachable",
+                "aria2 backend selected but daemon unavailable. Install aria2 "
+                "(brew/apt install aria2) or set download.backend=native",
+            )
+        return manager.wait_all(job_ids, progress_cb=progress_cb)
+
     email = cfg.get("unpaywall", {}).get("email", "")
     download_dir = cfg["download_dir"]
     pattern = cfg.get("filename_pattern", "{year}_{source}_{author}_{title}")
     pdf_map: dict[str, str] = {}
     for p in papers:
-        if not (p.pdf_url or p.doi):
+        if not (p.pdf_url or p.doi or p.pdf_candidates):
             continue
-        path = dl_paper(p, download_dir, cache, email, pattern)
+        path = dl_paper(p, download_dir, cache, email, pattern, cfg=cfg)
         if path:
             pdf_map[p.uid] = path
     return pdf_map

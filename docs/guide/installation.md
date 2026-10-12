@@ -64,7 +64,7 @@ pip install -e .
 
 ## Optional features
 
-The core install covers all 21 search sources and the full CLI. The table below lists every opt-in feature and the extra dependency it requires.
+The core install covers all 22 search sources and the full CLI. The table below lists every opt-in feature and the extra dependency it requires.
 
 | Feature | Extra | What it enables |
 |---------|-------|-----------------|

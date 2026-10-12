@@ -77,7 +77,7 @@ features:
 ## Quick start
 
 ```bash
-# Core install — all 21 sources and the full CLI
+# Core install — all 22 sources and the full CLI
 pipx install mosaic-search
 
 # Everything at once — RAG, web UI, Louvain clustering, browser sessions, NotebookLM

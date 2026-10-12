@@ -90,25 +90,82 @@ def sort_by_relevance(query: str, papers: list[Paper], cfg: dict) -> list[Paper]
     return sorted(scored, key=lambda p: p.relevance_score or 0.0, reverse=True)
 
 
-def merge_papers(seen: dict[str, Paper], paper: Paper) -> None:
-    """Merge *paper* into *seen*, preferring richer metadata.
-
-    If a paper with the same ``uid`` already exists, missing fields on the
-    existing record are filled in from *paper*.  Citation counts are updated
-    only when the new count is higher.
-    """
-    uid = paper.uid
-    if uid not in seen:
-        seen[uid] = paper
-        return
-    existing = seen[uid]
+def _merge_fields(existing: Paper, paper: Paper) -> None:
+    """Fill missing fields on *existing* from *paper* (non-destructive merge)."""
     if paper.abstract and not existing.abstract:
         existing.abstract = paper.abstract
     if paper.pdf_url and not existing.pdf_url:
         existing.pdf_url = paper.pdf_url
     if paper.doi and not existing.doi:
         existing.doi = paper.doi
+    if paper.arxiv_id and not existing.arxiv_id:
+        existing.arxiv_id = paper.arxiv_id
+    if paper.pii and not existing.pii:
+        existing.pii = paper.pii
+    if paper.ntrs_id and not existing.ntrs_id:
+        existing.ntrs_id = paper.ntrs_id
+    if paper.report_number and not existing.report_number:
+        existing.report_number = paper.report_number
+    if paper.pub_type and not existing.pub_type:
+        existing.pub_type = paper.pub_type
+    if paper.url and not existing.url:
+        existing.url = paper.url
+    if paper.openalex_id and not existing.openalex_id:
+        existing.openalex_id = paper.openalex_id
+    if paper.is_open_access and not existing.is_open_access:
+        existing.is_open_access = True
+    if paper.pdf_candidates:
+        known = {c.get("download_url") for c in existing.pdf_candidates}
+        existing.pdf_candidates.extend(
+            c for c in paper.pdf_candidates if c.get("download_url") not in known
+        )
     if paper.citation_count is not None and (
         existing.citation_count is None or paper.citation_count > existing.citation_count
     ):
         existing.citation_count = paper.citation_count
+
+
+def merge_papers(
+    seen: dict[str, Paper],
+    paper: Paper,
+    ident_index: dict[str, str] | None = None,
+) -> None:
+    """Merge *paper* into *seen*, preferring richer metadata.
+
+    Deduplication is identifier-aware: when *ident_index* is provided, a
+    paper whose DOI/arXiv/PII/NTRS identifier matches an existing record
+    under a different UID is merged into that record (e.g. an NTRS entry
+    later found via its DOI).  Citation counts are updated only when the
+    new count is higher.
+    """
+    uid = paper.uid
+
+    if ident_index is not None:
+        # First-seen record sharing any strong identifier → merge into it.
+        for ident in paper.identifiers:
+            existing_uid = ident_index.get(ident)
+            if existing_uid and existing_uid != uid and existing_uid in seen:
+                existing = seen[existing_uid]
+                _merge_fields(existing, paper)
+                new_uid = existing.uid  # may change after field merge
+                if new_uid != existing_uid:
+                    del seen[existing_uid]
+                    if new_uid in seen:
+                        _merge_fields(seen[new_uid], existing)
+                        existing = seen[new_uid]
+                    else:
+                        seen[new_uid] = existing
+                for i in existing.identifiers:
+                    ident_index[i] = existing.uid
+                return
+
+    if uid not in seen:
+        seen[uid] = paper
+        if ident_index is not None:
+            for i in paper.identifiers:
+                ident_index[i] = uid
+        return
+    _merge_fields(seen[uid], paper)
+    if ident_index is not None:
+        for i in seen[uid].identifiers:
+            ident_index[i] = seen[uid].uid

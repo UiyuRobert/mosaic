@@ -58,6 +58,7 @@ The main page. Enter a query, select sources, apply filters, and view results in
 - **Parallel queries** &mdash; sources are queried concurrently (up to 8 threads) for faster results
 - **Pagination** &mdash; results are paginated (25 per page) when there are many hits
 - **Export** &mdash; download results as CSV, JSON, BibTeX, or Markdown
+- **Batch download** &mdash; per-row checkboxes plus a *Selected (n)* / *All* button enqueue PDF downloads into the persistent queue; a 💾 badge marks papers already on disk
 
 ### Paper Detail
 
@@ -73,6 +74,15 @@ Click any paper title in the results table to see the full record:
 
 Find papers related to a known DOI or arXiv ID. Uses OpenAlex `related_works` and Semantic Scholar recommendations.
 
+### Downloads
+
+The download queue page. All PDF downloads go through a persistent, SQLite-backed queue — jobs survive restarts and page reloads.
+
+- **Progress** &mdash; live status (QUEUED / DOWNLOADING / VERIFYING / PAUSED / RETRY_WAIT / COMPLETED / FAILED / CANCELLED), percentage and transferred bytes, refreshed every 2 s
+- **Controls** &mdash; pause, resume, retry and cancel per job; *Clear completed* / *Clear failed* drop records without touching PDF files
+- **Backend badge** &mdash; shows whether jobs run on `native` or `aria2`
+- **Restart recovery** &mdash; jobs interrupted mid-download are re-queued automatically on the next start
+
 ### History
 
 All past searches are saved to the local SQLite cache. The history page lists them with result counts, timestamps, and a **Re-run** button to repeat any previous search.
@@ -82,9 +92,10 @@ All past searches are saved to the local SQLite cache. The history page lists th
 View and edit all MOSAIC settings from the browser:
 
 - Download directory and filename pattern
+- Download behaviour &mdash; backend (`auto` / `aria2` / `native`), global and per-host concurrency, per-host delay, retries, PDF verification, skip-existing, and collapsed aria2 settings (RPC URL/secret, auto-start, fallback, speed limit)
 - API keys for all sources (Elsevier, Semantic Scholar, CORE, NASA ADS, IEEE, Springer, NCBI, Zotero)
 - Unpaywall email
-- Enable/disable individual sources
+- Enable/disable individual sources (including NASA NTRS)
 
 Changes are saved to `~/.config/mosaic/config.toml`, the same file used by the CLI.
 

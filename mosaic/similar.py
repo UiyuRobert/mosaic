@@ -41,11 +41,14 @@ def find_similar(
         ``papers`` is the deduplicated list of similar papers.
     """
     seed_title, oa_papers = _similar_openalex(identifier, max_results, email=oa_email)
-    seen: dict[str, Paper] = {p.uid: p for p in oa_papers}
+    seen: dict[str, Paper] = {}
+    ident_index: dict[str, str] = {}
+    for p in oa_papers:
+        merge_papers(seen, p, ident_index)
 
     if ss_api_key:
         for p in _similar_ss(identifier, max_results, api_key=ss_api_key):
-            merge_papers(seen, p)
+            merge_papers(seen, p, ident_index)
 
     return seed_title, list(seen.values())
 

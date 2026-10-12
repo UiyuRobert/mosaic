@@ -3,6 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
+
+# Identifier-type priority for canonical-UID selection (lower wins).
+IDENT_PRIORITY = {"doi": 0, "arxiv": 1, "pii": 2, "ntrs": 3, "title": 4}
+
+
+def ident_rank(identifier: str) -> int:
+    """Rank an identifier key (``doi:x``, ``ntrs:x``…) by its type priority."""
+    return IDENT_PRIORITY.get(identifier.split(":", 1)[0], 5)
+
+
+def canonical_identifier(identifiers: set[str]) -> str:
+    """Return the highest-priority identifier from a set of alias keys."""
+    return min(identifiers, key=ident_rank) if identifiers else ""
 
 
 @dataclass
@@ -60,6 +74,51 @@ class SearchFilters:
         return f
 
 
+class PaperStatus(StrEnum):
+    """Lifecycle state of a paper's full-text availability.
+
+    A search result always carries metadata; the status reflects how far
+    full-text acquisition has progressed.
+    """
+
+    METADATA_ONLY = "metadata_only"
+    OA_AVAILABLE = "oa_available"
+    PDF_RESOLVED = "pdf_resolved"
+    DOWNLOADED = "downloaded"
+    NO_OA_FOUND = "no_oa_found"
+    ACCESS_RESTRICTED = "access_restricted"
+    DOWNLOAD_FAILED = "download_failed"
+
+
+@dataclass
+class PDFCandidate:
+    """A single downloadable-PDF candidate for a paper.
+
+    Ordered collection of these is built by ``downloader._candidates_for``:
+    direct source URLs first, then Unpaywall best/other locations, then the
+    authenticated browser-session fallback.
+    """
+
+    paper_uid: str
+    download_url: str
+    landing_url: str = ""
+    source: str = ""  # 'source' | 'ntrs' | 'unpaywall' | 'browser'
+    version: str = ""  # unpaywall: submitted/accepted/publishedVersion
+    license: str = ""
+    is_open_access: bool = True
+    confidence: float = 0.5  # 0..1 — used for ordering
+    discovered_at: str = ""  # ISO timestamp
+
+    def to_dict(self) -> dict:
+        from dataclasses import asdict
+
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> PDFCandidate:
+        return cls(**d)
+
+
 @dataclass
 class Paper:
     title: str
@@ -80,6 +139,11 @@ class Paper:
     citation_count: int | None = None
     relevance_score: float | None = None
     openalex_id: str | None = None
+    # ── Additional identifiers / metadata (appended: backward-compatible) ──
+    ntrs_id: str | None = None  # NASA NTRS 11-digit document ID
+    report_number: str | None = None  # report number e.g. "NASA/TM-2020-12345"
+    pub_type: str | None = None  # human-readable doc type e.g. "Technical Memorandum"
+    pdf_candidates: list[dict] = field(default_factory=list)  # serialised PDFCandidate dicts
 
     def to_dict(self) -> dict:
         """Serialise to a plain dict (thread-safe passing, JSON export)."""
@@ -106,7 +170,32 @@ class Paper:
             return f"arxiv:{self.arxiv_id}"
         if self.pii:
             return f"pii:{self.pii}"
+        if self.ntrs_id:
+            return f"ntrs:{self.ntrs_id}"
         return f"title:{self.title.lower()[:80]}"
+
+    @property
+    def identifiers(self) -> set[str]:
+        """All known identifier keys for this paper (doi/arxiv/pii/ntrs + uid).
+
+        Used by alias-aware deduplication: two records describing the same
+        work may carry different subsets of identifiers; matching on any
+        single strong identifier is enough to merge them.
+        """
+        ids: set[str] = {self.uid}
+        if self.doi:
+            doi_lower = self.doi.lower()
+            if doi_lower.startswith("10.48550/arxiv."):
+                ids.add(f"arxiv:{doi_lower.removeprefix('10.48550/arxiv.')}")
+            else:
+                ids.add(f"doi:{doi_lower}")
+        if self.arxiv_id:
+            ids.add(f"arxiv:{self.arxiv_id}")
+        if self.pii:
+            ids.add(f"pii:{self.pii}")
+        if self.ntrs_id:
+            ids.add(f"ntrs:{self.ntrs_id}")
+        return ids
 
     @property
     def short_authors(self) -> str:

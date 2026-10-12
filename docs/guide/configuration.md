@@ -88,6 +88,44 @@ filename_pattern = "{year}_{source}_{author}_{title}"
 # for usage tracking only, not authentication.
 email = "you@example.com"
 
+[download]
+# Download backend: "auto" (aria2 when available, else native),
+# "aria2" (require a local aria2 daemon), or "native" (built-in).
+backend = "auto"
+# Max simultaneous downloads across the whole queue.
+max_concurrent = 4
+# Max simultaneous downloads against a single host — scheduler-level,
+# applied on top of aria2's own per-server connection cap.
+per_host_concurrent = 1
+# Minimum seconds between starting two downloads on the same host.
+per_host_delay = 1.5
+# Attempts per job (initial try + retries with exponential backoff).
+max_tries = 3
+# Validate downloaded bytes before marking a job complete
+# (%PDF- header, %%EOF trailer, HTML error-page detection,
+# pymupdf page count when available).
+verify_pdf = true
+# Skip papers that already have a valid downloaded PDF on disk.
+skip_existing = true
+# Upper bound on a single file size, in MB.
+max_file_mb = 300
+# aria2 JSON-RPC endpoint — loopback only by default.
+aria2_rpc_url = "http://127.0.0.1:6800/jsonrpc"
+# RPC secret for the managed daemon; keep empty to auto-generate one
+# in memory when MOSAIC starts its own aria2 process.
+aria2_rpc_secret = ""
+# Start a managed aria2 daemon (bound to 127.0.0.1) when none is running.
+aria2_auto_start = true
+# Silently fall back to the native backend when aria2 is unavailable.
+# Default false: an explicit backend=aria2 request fails loudly instead.
+aria2_fallback_native = false
+# Global speed limit, e.g. "500K" or "1M". Empty = unlimited.
+aria2_max_download_limit = ""
+# aria2 connections per single file.
+max_connections = 1
+# aria2 segments per single file.
+max_split = 1
+
 [sources.arxiv]
 enabled = true
 
@@ -138,6 +176,13 @@ api_key = ""
 enabled = true
 # Required. Register free at https://ui.adsabs.harvard.edu/user/settings/token
 api_key = ""
+
+[sources.ntrs]
+enabled = true
+# No credentials required. NASA Scientific and Technical Information
+# Repository — public technical reports and conference papers.
+# Seconds between API requests (NTRS limit: 500 req / 15 min).
+rate_limit_delay = 1.0
 
 [sources.ieee]
 enabled = true

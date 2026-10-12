@@ -31,6 +31,7 @@ _DEFAULTS: dict = {
         "springer_api": {"enabled": True, "api_key": ""},
         "core": {"enabled": True, "api_key": ""},
         "nasa_ads": {"enabled": True, "api_key": ""},
+        "ntrs": {"enabled": True, "rate_limit_delay": 1.0},
         "ieee": {"enabled": True, "api_key": ""},
         "zenodo": {"enabled": True, "api_key": ""},
         "crossref": {"enabled": True},
@@ -48,6 +49,24 @@ _DEFAULTS: dict = {
         "scopus": {"enabled": True, "api_key": "", "inst_token": ""},
     },
     "unpaywall": {"email": ""},
+    "download": {
+        "backend": "auto",  # native | aria2 | auto
+        "max_concurrent": 4,  # global simultaneous downloads
+        "per_host_concurrent": 1,  # simultaneous downloads per source host
+        "per_host_delay": 1.5,  # seconds between download starts on one host
+        "max_tries": 3,  # attempts per job before FAILED
+        "max_split": 1,  # aria2 segments per file
+        "max_connections": 1,  # aria2 connections per server per file
+        "max_file_mb": 300,  # sanity cap on a single download
+        "verify_pdf": True,  # full PDF verification before marking complete
+        "skip_existing": True,  # skip papers whose PDF is already on disk
+        "aria2_rpc_url": "http://127.0.0.1:6800/jsonrpc",
+        "aria2_rpc_secret": "",  # never rendered into pages or logs
+        "aria2_auto_start": True,  # start a managed daemon when none is running
+        "aria2_fallback_native": False,  # silently switch backend when aria2 missing
+        "aria2_max_download_limit": "",  # e.g. "500K" — empty = unlimited
+        "allow_private_hosts": False,  # dev/testing: permit private/loopback URLs
+    },
     "zotero": {"api_key": "", "user_id": 0},
     "obsidian": {
         "vault_path": "",
@@ -89,6 +108,7 @@ _KNOWN_SOURCES: set[str] = {
     "springer_api",
     "core",
     "nasa_ads",
+    "ntrs",
     "ieee",
     "zenodo",
     "crossref",
@@ -139,6 +159,35 @@ def validate(cfg: dict) -> list[str]:
         email = unpaywall.get("email")
         if email is not None and email != "" and not isinstance(email, str):
             warnings.append("unpaywall.email should be a string")
+
+    # -- download -------------------------------------------------------------
+    dl = cfg.get("download")
+    if isinstance(dl, dict):
+        if dl.get("backend", "auto") not in ("native", "aria2", "auto"):
+            warnings.append("download.backend should be native, aria2, or auto")
+        for key in (
+            "max_concurrent",
+            "per_host_concurrent",
+            "max_tries",
+            "max_split",
+            "max_connections",
+            "max_file_mb",
+        ):
+            if key in dl and (not isinstance(dl[key], int) or dl[key] < 1):
+                warnings.append(f"download.{key} should be a positive int")
+        for key in ("per_host_delay",):
+            if key in dl and (not isinstance(dl[key], (int, float)) or dl[key] < 0):
+                warnings.append(f"download.{key} should be a number >= 0")
+        rpc = dl.get("aria2_rpc_url", "")
+        if rpc and "://" in rpc:
+            from urllib.parse import urlparse
+
+            host = urlparse(rpc).hostname or ""
+            if host not in ("127.0.0.1", "localhost", "::1"):
+                warnings.append(
+                    "download.aria2_rpc_url should bind to a loopback address "
+                    "(127.0.0.1/localhost) — remote aria2 is not supported"
+                )
 
     # -- zotero --------------------------------------------------------------
     zotero = cfg.get("zotero")

@@ -2,19 +2,19 @@
 name: mosaic
 description: >
   Expert knowledge of MOSAIC (Multi-source Scientific Article Indexer and Collector) — a CLI tool
-  for searching, downloading, and managing scientific papers from 21 sources with a single command.
+  for searching, downloading, and managing scientific papers from 22 sources with a single command.
   Use this skill whenever the user asks about: building a bibliography programmatically, searching
   for papers across multiple sources, downloading OA PDFs, formatting citation strings (BibTeX/APA/
   MLA/Chicago), exporting to BibTeX/Zotero/Obsidian, interpreting mosaic --json output in AI agent
   or CI workflows, RAG over a paper library, semantic search over a local paper library, finding
   similar papers, analysing citation networks, comparing papers across structured dimensions, or any
-  task that involves mosaic search/get/cite/similar/ask/chat/index/network/compare/skill commands.
+  task that involves mosaic search/get/cite/similar/ask/chat/index/network/compare/downloads/skill commands.
   When in doubt, trigger this skill — it is better to consult it unnecessarily than to miss it.
 ---
 
 # MOSAIC Expert Knowledge
 
-MOSAIC fans out paper searches across 21 scientific sources, deduplicates results by DOI, caches
+MOSAIC fans out paper searches across 22 scientific sources, deduplicates results by DOI, caches
 them in a local SQLite database, and can download OA PDFs. It provides structured JSON output for
 AI agent and CI workflows.
 
@@ -23,6 +23,7 @@ AI agent and CI workflows.
 ```bash
 mosaic search "query"           # search all enabled sources
 mosaic get <doi>                # fetch metadata + download PDF by DOI
+mosaic downloads list           # inspect the persistent download queue
 mosaic cite <doi>               # format citation string (BibTeX/APA/MLA/Chicago/…)
 mosaic similar <doi|arxiv_id>   # find related papers via OpenAlex + Semantic Scholar
 mosaic network                  # explore citation network, identify hubs and clusters
@@ -122,11 +123,13 @@ echo "Found $count papers, $(echo "$pdfs" | wc -l) with PDF"
 ```python
 import json, subprocess
 
+
 def mosaic_json(args: list[str]) -> dict:
     r = subprocess.run(["mosaic"] + args, capture_output=True, text=True, check=False)
     if r.returncode != 0 and not r.stdout.strip():
         raise RuntimeError(f"mosaic failed: {r.stderr}")
     return json.loads(r.stdout)
+
 
 # Search and parse
 data = mosaic_json(["search", "FDTD high-order", "--max", "25", "--json"])
@@ -189,6 +192,7 @@ mosaic search "query" [OPTIONS]
 | `base` | BASE | 300 M+ from 10k+ repos | None |
 | `core` | CORE | 200 M+ OA full-text | Free API key |
 | `ads` | NASA ADS | Astronomy & astrophysics | Free API token |
+| `ntrs` | NASA NTRS | NASA technical reports & STI | None |
 | `ieee` | IEEE Xplore | 5 M+ IEEE papers | Free API key |
 | `zenodo` | Zenodo | 3 M+ OA research outputs | None |
 | `crossref` | Crossref | 150 M+ DOI registry | None |
@@ -211,6 +215,30 @@ mosaic get --from library.csv   # bulk-download from CSV file (must have 'doi' c
 ```
 
 Options: `--oa-only`, `--download-dir`, `--zotero`, `--zotero-collection`, `--obsidian`.
+
+## downloads Command
+
+Manage the persistent download queue (SQLite-backed; survives restarts). All PDF downloads —
+from `search --download`, `get`, the Web UI and the Bulk page — flow through this queue.
+Backend is `native` (built-in) or `aria2` (local daemon, auto-started on 127.0.0.1);
+configure via `[download]` in `config.toml` or `mosaic config --download-backend …`.
+
+```bash
+mosaic downloads list                  # jobs table: status, progress, backend, error
+mosaic downloads list --status FAILED
+mosaic downloads status                # aggregate stats + effective backend
+mosaic downloads pause <job_id>        # or --all
+mosaic downloads resume <job_id>       # or --all
+mosaic downloads retry <job_id>        # or --failed
+mosaic downloads cancel <job_id>       # or --all
+mosaic downloads clear --completed     # drop records only — PDFs are never deleted
+```
+
+Job states: `QUEUED → DOWNLOADING → VERIFYING → COMPLETED`, plus `PAUSED`,
+`RETRY_WAIT`, `FAILED`, `CANCELLED`. Interrupted jobs are re-queued on restart.
+The Error column carries a machine-readable reason (`not_found`, `access_denied`,
+`rate_limited`, `server_error`, `timeout`, `dns_error`, `html_response`,
+`not_pdf`, `missing_eof`, `disk_full`, `unsafe_url`, `no_candidates`, `cancelled`).
 
 ## cite Command
 
@@ -458,11 +486,13 @@ Default downloads: `~/mosaic-papers/`
 import json, subprocess
 from pathlib import Path
 
+
 def mosaic(args: list[str]) -> dict:
     r = subprocess.run(["mosaic"] + args, capture_output=True, text=True, check=False)
     if r.returncode != 0 and not r.stdout.strip():
         raise RuntimeError(r.stderr)
     return json.loads(r.stdout)
+
 
 # --- Step 1: Search multiple related queries ---
 all_papers: list[dict] = []
@@ -503,16 +533,48 @@ for p in unique:
 
 # --- Step 6: Index, enrich citations, and ask ---
 subprocess.run(["mosaic", "index", "--enrich-citations"])
-subprocess.run(["mosaic", "ask", "Summarise the evolution of attention mechanisms",
-                "--mode", "synthesis", "--output", "synthesis.md"])
+subprocess.run(
+    [
+        "mosaic",
+        "ask",
+        "Summarise the evolution of attention mechanisms",
+        "--mode",
+        "synthesis",
+        "--output",
+        "synthesis.md",
+    ]
+)
 
 # --- Step 7: Explore the citation network ---
-subprocess.run(["mosaic", "network", "--query", "attention mechanism",
-                "--cluster", "--top", "5", "--output", "network.md"])
+subprocess.run(
+    [
+        "mosaic",
+        "network",
+        "--query",
+        "attention mechanism",
+        "--cluster",
+        "--top",
+        "5",
+        "--output",
+        "network.md",
+    ]
+)
 
 # --- Step 8: Compare methods across top-cited papers ---
-subprocess.run(["mosaic", "compare", "--query", "attention mechanism",
-                "--sort", "citations", "-n", "20", "--output", "comparison.md"])
+subprocess.run(
+    [
+        "mosaic",
+        "compare",
+        "--query",
+        "attention mechanism",
+        "--sort",
+        "citations",
+        "-n",
+        "20",
+        "--output",
+        "comparison.md",
+    ]
+)
 ```
 
 ---

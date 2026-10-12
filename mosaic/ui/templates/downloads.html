@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Downloads — MOSAIC{% endblock %}
+{% block content %}
+<h2>Download Queue</h2>
+<p class="stats-line">
+  Persistent queue — jobs survive restarts. Managing records here never
+  deletes downloaded PDFs.
+</p>
+<div id="downloads-table"
+     hx-get="{{ url_for('ui.downloads_table') }}"
+     hx-trigger="load, every 2s"
+     hx-swap="innerHTML">
+  <p aria-busy="true">Loading&hellip;</p>
+</div>
+{% endblock %}

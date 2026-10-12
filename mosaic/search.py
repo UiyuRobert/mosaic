@@ -34,6 +34,7 @@ def search_all(
     parallel: bool = True,
 ) -> list[Paper]:
     seen: dict[str, Paper] = {}
+    ident_index: dict[str, str] = {}  # identifier → uid (alias-aware dedup)
     per_source: dict[str, int] = {}
     raw_total = 0
     merged = 0
@@ -53,7 +54,7 @@ def search_all(
                     per_source[name] = len(results)
                     raw_total += len(results)
                     for paper in results:
-                        merge_papers(seen, paper)
+                        merge_papers(seen, paper, ident_index)
                     if progress_callback:
                         progress_callback(name, "done")
                 except Exception as e:
@@ -76,7 +77,7 @@ def search_all(
             per_source[source.name] = len(results)
             raw_total += len(results)
             for paper in results:
-                merge_papers(seen, paper)
+                merge_papers(seen, paper, ident_index)
             if progress_callback:
                 progress_callback(source.name, "done")
 

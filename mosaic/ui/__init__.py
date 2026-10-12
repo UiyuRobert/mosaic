@@ -42,4 +42,12 @@ def create_app() -> Flask:
 
     app.register_blueprint(bp)
 
+    @app.context_processor
+    def inject_downloaded():
+        """Make the set of downloaded paper UIDs available in all templates."""
+        try:
+            return {"downloaded_uids": app.config["MOSAIC_CACHE"].get_downloaded_uids()}
+        except Exception:
+            return {"downloaded_uids": set()}
+
     return app

@@ -9,17 +9,18 @@ import sqlite3
 import threading
 from pathlib import Path
 
-from mosaic.models import Paper
+from mosaic.models import Paper, canonical_identifier
 
 log = logging.getLogger(__name__)
 
 
 def _connect(db_path: str) -> sqlite3.Connection:
     path = Path(db_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if db_path != ":memory:":
+        path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(db_path, check_same_thread=False)
     con.row_factory = sqlite3.Row
-    _init(con)
+    _init(con, db_path)
     return con
 
 
@@ -36,7 +37,88 @@ def _load_sqlite_vec(con: sqlite3.Connection) -> bool:
         return False
 
 
-def _init(con: sqlite3.Connection) -> None:
+_SCHEMA_VERSION = 2
+
+# Versioned migrations. Index `n` holds statements upgrading schema v(n+1)
+# to v(n+2). Every statement must be idempotent-safe (we tolerate
+# OperationalError) so re-running a migration never corrupts data.
+_MIGRATIONS: list[list[str]] = [
+    # v1 → v2: NTRS support, identifier alias table, persistent download queue
+    [
+        "ALTER TABLE papers ADD COLUMN ntrs_id TEXT",
+        "ALTER TABLE papers ADD COLUMN report_number TEXT",
+        "ALTER TABLE papers ADD COLUMN pub_type TEXT",
+        "ALTER TABLE papers ADD COLUMN pdf_candidates TEXT",
+        """CREATE TABLE IF NOT EXISTS paper_identifiers (
+            identifier TEXT PRIMARY KEY,
+            uid        TEXT NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_pi_uid ON paper_identifiers(uid)",
+        """CREATE TABLE IF NOT EXISTS download_jobs (
+            job_id           TEXT PRIMARY KEY,
+            paper_uid        TEXT NOT NULL,
+            url              TEXT,
+            backend          TEXT,
+            aria2_gid        TEXT,
+            destination      TEXT,
+            downloaded_bytes INTEGER DEFAULT 0,
+            total_bytes      INTEGER DEFAULT 0,
+            status           TEXT NOT NULL DEFAULT 'QUEUED',
+            retry_count      INTEGER DEFAULT 0,
+            last_error       TEXT,
+            next_retry_at    REAL,
+            host             TEXT,
+            candidates_json  TEXT,
+            created_at       TEXT DEFAULT (datetime('now')),
+            updated_at       TEXT DEFAULT (datetime('now'))
+        )""",
+        "ALTER TABLE download_jobs ADD COLUMN candidates_json TEXT",
+        "CREATE INDEX IF NOT EXISTS idx_dj_status ON download_jobs(status)",
+        "CREATE INDEX IF NOT EXISTS idx_dj_paper ON download_jobs(paper_uid)",
+        "CREATE INDEX IF NOT EXISTS idx_dj_host ON download_jobs(host)",
+    ],
+]
+
+
+def _backup_db_file(db_path: str, tag: str) -> None:
+    """Copy the DB file to ``<db>.bak-<tag>`` before a schema migration."""
+    import shutil
+
+    src = Path(db_path)
+    if not src.is_file() or db_path == ":memory:":
+        return
+    dst = src.with_name(src.name + f".bak-{tag}")
+    try:
+        shutil.copy2(src, dst)
+        log.info("Database backed up to %s before migration", dst)
+    except OSError as e:
+        log.warning("Could not back up database before migration: %s", e)
+
+
+def _migrate(con: sqlite3.Connection, db_path: str) -> None:
+    """Apply pending schema migrations tracked by ``PRAGMA user_version``.
+
+    Databases created before versioning report ``user_version = 0`` and are
+    treated as schema v1 (all legacy statements already ran). A backup copy
+    of the DB file is written before the first migration batch.
+    """
+    version = con.execute("PRAGMA user_version").fetchone()[0]
+    if version == 0:
+        version = 1  # pre-versioning databases are schema v1
+    if version >= _SCHEMA_VERSION:
+        return
+    _backup_db_file(db_path, f"v{version}")
+    for target in range(version + 1, _SCHEMA_VERSION + 1):
+        for stmt in _MIGRATIONS[target - 2]:
+            try:
+                con.execute(stmt)
+            except sqlite3.OperationalError:
+                pass  # column/table already present — migration is idempotent
+        con.execute(f"PRAGMA user_version = {target}")
+    con.commit()
+
+
+def _init(con: sqlite3.Connection, db_path: str = "") -> None:
     con.executescript("""
         CREATE TABLE IF NOT EXISTS papers (
             uid          TEXT PRIMARY KEY,
@@ -123,9 +205,10 @@ def _init(con: sqlite3.Connection) -> None:
             con.commit()
         except sqlite3.OperationalError:
             pass  # already exists
+    _migrate(con, db_path)
 
 
-def upsert(con: sqlite3.Connection, paper: Paper) -> None:
+def upsert(con: sqlite3.Connection, paper: Paper, uid: str | None = None) -> None:
     """Insert *paper* or enrich the existing row with field-level merge rules.
 
     Rules (applied only on conflict):
@@ -134,16 +217,23 @@ def upsert(con: sqlite3.Connection, paper: Paper) -> None:
     - is_open_access : True supersedes False (OR / MAX)
     - citation_count : keep the higher value; NULL is treated as "unknown"
     - authors        : keep the longer JSON array
-    - doi/arxiv_id/pii, journal, volume, issue, pages, url : fill if empty
+    - doi/arxiv_id/pii/ntrs_id/report_number/pub_type, journal, volume,
+      issue, pages, url : fill if empty
+    - pdf_candidates : keep the longer JSON array
     - title, year, source : keep the first-recorded value
+
+    Args:
+        uid: Canonical UID override — used when the caller has resolved
+            aliases to a different UID than ``paper.uid``.
     """
     con.execute(
         """
         INSERT INTO papers
             (uid, title, authors, year, doi, arxiv_id, pii, abstract,
              journal, volume, issue, pages, pdf_url, source, is_open_access,
-             url, citation_count, openalex_id)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             url, citation_count, openalex_id, ntrs_id, report_number,
+             pub_type, pdf_candidates)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(uid) DO UPDATE SET
             abstract = CASE
                 WHEN excluded.abstract IS NULL THEN papers.abstract
@@ -171,10 +261,19 @@ def upsert(con: sqlite3.Connection, paper: Paper) -> None:
             issue       = COALESCE(papers.issue,       excluded.issue),
             pages       = COALESCE(papers.pages,       excluded.pages),
             url         = COALESCE(papers.url,         excluded.url),
-            openalex_id = COALESCE(papers.openalex_id, excluded.openalex_id)
+            openalex_id = COALESCE(papers.openalex_id, excluded.openalex_id),
+            ntrs_id      = COALESCE(papers.ntrs_id,      excluded.ntrs_id),
+            report_number = COALESCE(papers.report_number, excluded.report_number),
+            pub_type     = COALESCE(papers.pub_type,     excluded.pub_type),
+            pdf_candidates = CASE
+                WHEN json_array_length(COALESCE(excluded.pdf_candidates, '[]'))
+                     > json_array_length(COALESCE(papers.pdf_candidates, '[]'))
+                    THEN excluded.pdf_candidates
+                ELSE papers.pdf_candidates
+            END
         """,
         (
-            paper.uid,
+            uid or paper.uid,
             paper.title,
             json.dumps(paper.authors),
             paper.year,
@@ -192,8 +291,90 @@ def upsert(con: sqlite3.Connection, paper: Paper) -> None:
             paper.url,
             paper.citation_count,
             paper.openalex_id,
+            paper.ntrs_id,
+            paper.report_number,
+            paper.pub_type,
+            json.dumps(paper.pdf_candidates) if paper.pdf_candidates else None,
         ),
     )
+    con.commit()
+
+
+def canonical_uid_of(identifiers: set[str]) -> str:
+    """Return the highest-priority identifier from a set of alias keys."""
+    return canonical_identifier(identifiers)
+
+
+def register_identifiers(con: sqlite3.Connection, identifiers: set[str], uid: str) -> None:
+    """Map each identifier in *identifiers* to the canonical *uid*."""
+    for ident in identifiers:
+        con.execute(
+            "INSERT OR REPLACE INTO paper_identifiers(identifier, uid) VALUES (?,?)",
+            (ident, uid),
+        )
+    con.commit()
+
+
+def resolve_uid(con: sqlite3.Connection, uid: str) -> str:
+    """Resolve an alias UID to the canonical papers-table UID."""
+    row = con.execute("SELECT uid FROM paper_identifiers WHERE identifier=?", (uid,)).fetchone()
+    return row[0] if row else uid
+
+
+def uids_for_identifiers(con: sqlite3.Connection, identifiers: set[str]) -> set[str]:
+    """Return canonical UIDs already mapped from any of *identifiers*."""
+    if not identifiers:
+        return set()
+    placeholders = ",".join("?" * len(identifiers))
+    rows = con.execute(
+        f"SELECT DISTINCT uid FROM paper_identifiers WHERE identifier IN ({placeholders})",  # noqa: S608
+        list(identifiers),
+    ).fetchall()
+    return {r[0] for r in rows}
+
+
+def migrate_uid(con: sqlite3.Connection, old_uid: str, new_uid: str) -> None:
+    """Re-key every record from *old_uid* to *new_uid* (canonical change).
+
+    Papers rows are merged field-by-field via :func:`upsert`; download
+    records keep the better status; identifier aliases are repointed.
+    """
+    if old_uid == new_uid:
+        return
+    row = con.execute("SELECT * FROM papers WHERE uid=?", (old_uid,)).fetchone()
+    if row:
+        paper = row_to_paper(row)
+        upsert(con, paper, uid=new_uid)
+        con.execute("DELETE FROM papers WHERE uid=?", (old_uid,))
+        # Repoint every identifier the migrated record carried (covers rows
+        # saved before the identifier table existed — old_uid included).
+        register_identifiers(con, paper.identifiers | {old_uid}, new_uid)
+
+    # downloads: repoint; if a row already exists for new_uid keep the best.
+    old_dl = con.execute("SELECT * FROM downloads WHERE uid=?", (old_uid,)).fetchone()
+    new_dl = con.execute("SELECT * FROM downloads WHERE uid=?", (new_uid,)).fetchone()
+    if old_dl and not new_dl:
+        con.execute("UPDATE downloads SET uid=? WHERE uid=?", (new_uid, old_uid))
+    elif old_dl and new_dl:
+        if old_dl["status"] == "ok" and new_dl["status"] != "ok":
+            con.execute(
+                "UPDATE downloads SET local_path=?, status=? WHERE uid=?",
+                (old_dl["local_path"], old_dl["status"], new_uid),
+            )
+        con.execute("DELETE FROM downloads WHERE uid=?", (old_uid,))
+
+    for table, col in (
+        ("paper_identifiers", "uid"),
+        ("download_jobs", "paper_uid"),
+        ("exports", "uid"),
+        ("paper_chunks", "uid"),
+        ("paper_citations", "source_uid"),
+        ("paper_citations", "target_uid"),
+    ):
+        try:
+            con.execute(f"UPDATE {table} SET {col}=? WHERE {col}=?", (new_uid, old_uid))  # noqa: S608
+        except sqlite3.OperationalError:
+            pass  # table may not exist on very old schemas
     con.commit()
 
 
@@ -233,6 +414,14 @@ def row_to_paper(row: sqlite3.Row) -> Paper:
         url=row["url"],
         citation_count=row["citation_count"],
         openalex_id=row["openalex_id"] if "openalex_id" in keys else None,
+        ntrs_id=row["ntrs_id"] if "ntrs_id" in keys else None,
+        report_number=row["report_number"] if "report_number" in keys else None,
+        pub_type=row["pub_type"] if "pub_type" in keys else None,
+        pdf_candidates=(
+            json.loads(row["pdf_candidates"])
+            if "pdf_candidates" in keys and row["pdf_candidates"]
+            else []
+        ),
     )
 
 
@@ -253,21 +442,50 @@ class Cache:
 
     # ── Basic read/write ──────────────────────────────────────────────────────
 
+    def _canonical_for(self, paper: Paper) -> str:
+        """Resolve the canonical UID for *paper* via the alias table.
+
+        If any of the paper's identifiers already map to existing UIDs, all
+        mapped records are re-keyed to the highest-priority identifier
+        (doi > arxiv > pii > ntrs > title) and that UID is returned.
+        """
+        idents = paper.identifiers
+        existing = uids_for_identifiers(self.con, idents)
+        candidates = existing | {paper.uid}
+        canonical = canonical_uid_of(candidates)
+        for uid in existing:
+            if uid != canonical:
+                migrate_uid(self.con, uid, canonical)
+        return canonical
+
     def save(self, paper: Paper) -> None:
         with self._lock:
-            upsert(self.con, paper)
+            canonical = self._canonical_for(paper)
+            upsert(self.con, paper, uid=canonical)
+            register_identifiers(self.con, paper.identifiers, canonical)
+            # Backfill identifiers carried by the merged stored record —
+            # covers rows saved before the identifier table existed.
+            row = self.con.execute("SELECT * FROM papers WHERE uid=?", (canonical,)).fetchone()
+            if row:
+                register_identifiers(self.con, row_to_paper(row).identifiers, canonical)
+
+    def resolve_uid(self, uid: str) -> str:
+        """Resolve an alias (e.g. ``ntrs:x`` for a DOI-canonical paper)."""
+        with self._lock:
+            return resolve_uid(self.con, uid)
 
     def set_download(self, uid: str, local_path: str, status: str) -> None:
         with self._lock:
-            set_download(self.con, uid, local_path, status)
+            set_download(self.con, resolve_uid(self.con, uid), local_path, status)
 
     def get_download(self, uid: str) -> sqlite3.Row | None:
         with self._lock:
-            return get_download(self.con, uid)
+            return get_download(self.con, resolve_uid(self.con, uid))
 
     def get_by_uid(self, uid: str) -> Paper | None:
         with self._lock:
-            row = self.con.execute("SELECT * FROM papers WHERE uid=?", (uid,)).fetchone()
+            resolved = resolve_uid(self.con, uid)
+            row = self.con.execute("SELECT * FROM papers WHERE uid=?", (resolved,)).fetchone()
             return row_to_paper(row) if row else None
 
     def search_local(self, query: str) -> list[Paper]:
@@ -741,3 +959,122 @@ class Cache:
                 "SELECT source_uid, target_uid FROM paper_citations"
             ).fetchall()
             return [(r[0], r[1]) for r in rows]
+
+    # ── Download queue (persistent jobs) ─────────────────────────────────────
+
+    def enqueue_job(self, job: dict) -> None:
+        """Insert a download job row. Required keys: job_id, paper_uid, url,
+        backend, destination, host. Optional: status, next_retry_at."""
+        with self._lock:
+            self.con.execute(
+                """
+                INSERT INTO download_jobs
+                    (job_id, paper_uid, url, backend, destination, host,
+                     status, next_retry_at, candidates_json)
+                VALUES (?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    job["job_id"],
+                    job["paper_uid"],
+                    job.get("url"),
+                    job.get("backend"),
+                    job.get("destination"),
+                    job.get("host"),
+                    job.get("status", "QUEUED"),
+                    job.get("next_retry_at"),
+                    job.get("candidates_json"),
+                ),
+            )
+            self.con.commit()
+
+    def update_job(self, job_id: str, **fields) -> None:
+        """Update arbitrary columns of a download job and bump updated_at."""
+        allowed = {
+            "url",
+            "backend",
+            "aria2_gid",
+            "destination",
+            "downloaded_bytes",
+            "total_bytes",
+            "status",
+            "retry_count",
+            "last_error",
+            "next_retry_at",
+            "host",
+            "candidates_json",
+        }
+        sets = {k: v for k, v in fields.items() if k in allowed}
+        if not sets:
+            return
+        with self._lock:
+            cols = ", ".join(f"{k}=?" for k in sets)
+            self.con.execute(
+                f"UPDATE download_jobs SET {cols}, updated_at=datetime('now') WHERE job_id=?",  # noqa: S608
+                (*sets.values(), job_id),
+            )
+            self.con.commit()
+
+    def get_job(self, job_id: str) -> dict | None:
+        with self._lock:
+            row = self.con.execute(
+                "SELECT * FROM download_jobs WHERE job_id=?", (job_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_jobs(
+        self,
+        status: str | list[str] | None = None,
+        limit: int = 200,
+        offset: int = 0,
+    ) -> list[dict]:
+        """List download jobs, newest first. *status* filters on one or more
+        status values; ``None`` returns all jobs."""
+        with self._lock:
+            if status is None:
+                rows = self.con.execute(
+                    "SELECT * FROM download_jobs ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    (limit, offset),
+                ).fetchall()
+            else:
+                statuses = [status] if isinstance(status, str) else list(status)
+                placeholders = ",".join("?" * len(statuses))
+                rows = self.con.execute(
+                    f"SELECT * FROM download_jobs WHERE status IN ({placeholders}) "  # noqa: S608
+                    "ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    (*statuses, limit, offset),
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def job_counts(self) -> dict[str, int]:
+        """Return ``{status: count}`` across the download queue."""
+        with self._lock:
+            rows = self.con.execute(
+                "SELECT status, COUNT(*) AS n FROM download_jobs GROUP BY status"
+            ).fetchall()
+            return {r["status"]: r["n"] for r in rows}
+
+    def delete_job(self, job_id: str) -> None:
+        with self._lock:
+            self.con.execute("DELETE FROM download_jobs WHERE job_id=?", (job_id,))
+            self.con.commit()
+
+    def clear_jobs(self, statuses: list[str]) -> int:
+        """Delete jobs in the given statuses; returns rows removed."""
+        if not statuses:
+            return 0
+        with self._lock:
+            placeholders = ",".join("?" * len(statuses))
+            cur = self.con.execute(
+                f"DELETE FROM download_jobs WHERE status IN ({placeholders})",  # noqa: S608
+                statuses,
+            )
+            self.con.commit()
+            return cur.rowcount
+
+    def jobs_for_paper(self, paper_uid: str) -> list[dict]:
+        with self._lock:
+            rows = self.con.execute(
+                "SELECT * FROM download_jobs WHERE paper_uid=? ORDER BY created_at DESC",
+                (paper_uid,),
+            ).fetchall()
+            return [dict(r) for r in rows]

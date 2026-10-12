@@ -37,10 +37,14 @@ notebook_app = typer.Typer(
 )
 auth_app = typer.Typer(help="Manage browser sessions for authenticated PDF access.")
 cache_app = typer.Typer(help="Inspect and manage the local SQLite cache.")
+downloads_app = typer.Typer(
+    help="Manage the persistent download queue (list/pause/resume/retry/cancel)."
+)
 skill_app = typer.Typer(help="Manage the bundled MOSAIC Claude Code skill.")
 app.add_typer(notebook_app, name="notebook")
 app.add_typer(auth_app, name="auth")
 app.add_typer(cache_app, name="cache")
+app.add_typer(downloads_app, name="downloads")
 app.add_typer(skill_app, name="skill")
 
 
@@ -96,7 +100,7 @@ def search(
         typer.Option(
             "--source",
             "-s",
-            help="Limit to one source (arxiv, ss, sd, sp, springer, doaj, epmc, oa, base, core, ads, ieee, zenodo, crossref, dblp, hal, pubmed, pmc, rxiv, pedro, scopus)",
+            help="Limit to one source (arxiv, ss, sd, sp, springer, doaj, epmc, oa, base, core, ads, ntrs, ieee, zenodo, crossref, dblp, hal, pubmed, pmc, rxiv, pedro, scopus)",
             autocompletion=lambda: list(SRC_MAP.keys()),
         ),
     ] = "",
@@ -619,13 +623,10 @@ def get(
     paper = cache.get_by_uid(_bare.uid) or _bare
     if paper is not _bare:
         rprint(f"[dim]Found in local cache: {paper.title[:80]}[/dim]")
-    path = dl_paper(
-        paper,
-        cfg["download_dir"],
-        cache,
-        cfg.get("unpaywall", {}).get("email", ""),
-        cfg.get("filename_pattern", "{year}_{source}_{author}_{title}"),
-    )
+    from mosaic.workflows import download_papers
+
+    pdf_map = download_papers([paper], cfg, cache)
+    path = pdf_map.get(paper.uid)
     if path:
         rprint(f"[green]Saved:[/green] {path}")
     else:
@@ -1142,12 +1143,60 @@ def config(
         float | None,
         typer.Option(help="Set default delay between API calls in seconds"),
     ] = None,
+    # --- download backend ---
+    download_backend: Annotated[
+        str,
+        typer.Option("--download-backend", help='Download backend: "native", "aria2", or "auto"'),
+    ] = "",
+    max_concurrent: Annotated[
+        int | None,
+        typer.Option("--max-concurrent", help="Global simultaneous downloads (default: 4)"),
+    ] = None,
+    per_host_concurrent: Annotated[
+        int | None,
+        typer.Option("--per-host-concurrent", help="Simultaneous downloads per host (default: 1)"),
+    ] = None,
+    per_host_delay: Annotated[
+        float | None,
+        typer.Option("--per-host-delay", help="Seconds between download starts per host"),
+    ] = None,
+    max_tries: Annotated[
+        int | None,
+        typer.Option("--max-tries", help="Attempts per download job (default: 3)"),
+    ] = None,
+    verify_pdf: Annotated[
+        bool | None,
+        typer.Option(
+            "--verify-pdf/--no-verify-pdf",
+            help="Verify downloaded files are valid PDFs before marking complete",
+        ),
+    ] = None,
+    skip_existing: Annotated[
+        bool | None,
+        typer.Option(
+            "--skip-existing/--no-skip-existing",
+            help="Skip papers whose PDF is already downloaded",
+        ),
+    ] = None,
+    aria2_rpc_url: Annotated[
+        str, typer.Option("--aria2-rpc-url", help="aria2 JSON-RPC URL (loopback only)")
+    ] = "",
+    aria2_rpc_secret: Annotated[
+        str, typer.Option("--aria2-rpc-secret", help="aria2 RPC secret (stored in config)")
+    ] = "",
+    aria2_fallback_native: Annotated[
+        bool | None,
+        typer.Option(
+            "--aria2-fallback/--no-aria2-fallback",
+            help="Fall back to native backend when aria2 is unavailable",
+        ),
+    ] = None,
     # --- source enable/disable ---
     enable_source: Annotated[
         list[str] | None,
         typer.Option(
             "--enable-source",
-            help="Enable a source by name (repeatable). Known names: arxiv, semantic_scholar, sciencedirect, doaj, europepmc, openalex, base, springer_api, core, nasa_ads, ieee, zenodo, crossref, dblp, hal, pubmed, pmc, biorxiv, pedro, scopus",
+            help="Enable a source by name (repeatable). Known names: arxiv, semantic_scholar, sciencedirect, doaj, europepmc, openalex, base, springer_api, core, nasa_ads, ntrs, ieee, zenodo, crossref, dblp, hal, pubmed, pmc, biorxiv, pedro, scopus",
         ),
     ] = None,
     disable_source: Annotated[
@@ -1316,6 +1365,45 @@ def config(
         cfg["filename_pattern"] = filename_pattern
     if rate_limit_delay is not None:
         cfg["rate_limit_delay"] = rate_limit_delay
+
+    # --- download backend ---
+    _dl = cfg.setdefault("download", {})
+    _dl_changed = False
+    if download_backend:
+        if download_backend not in ("native", "aria2", "auto"):
+            rprint(f"[red]Invalid backend {download_backend!r} — use native, aria2, or auto[/red]")
+            raise typer.Exit(1)
+        _dl["backend"] = download_backend
+        _dl_changed = True
+    if max_concurrent is not None:
+        _dl["max_concurrent"] = max_concurrent
+        _dl_changed = True
+    if per_host_concurrent is not None:
+        _dl["per_host_concurrent"] = per_host_concurrent
+        _dl_changed = True
+    if per_host_delay is not None:
+        _dl["per_host_delay"] = per_host_delay
+        _dl_changed = True
+    if max_tries is not None:
+        _dl["max_tries"] = max_tries
+        _dl_changed = True
+    if verify_pdf is not None:
+        _dl["verify_pdf"] = verify_pdf
+        _dl_changed = True
+    if skip_existing is not None:
+        _dl["skip_existing"] = skip_existing
+        _dl_changed = True
+    if aria2_rpc_url:
+        _dl["aria2_rpc_url"] = aria2_rpc_url
+        _dl_changed = True
+    if aria2_rpc_secret:
+        _dl["aria2_rpc_secret"] = aria2_rpc_secret
+        _dl_changed = True
+    if aria2_fallback_native is not None:
+        _dl["aria2_fallback_native"] = aria2_fallback_native
+        _dl_changed = True
+    if _dl_changed:
+        rprint("[green]Download config updated.[/green]")
 
     # --- source enable/disable ---
     _sources_changed = False
@@ -1553,33 +1641,37 @@ def _bulk_download(
 
     rprint(f"[dim]Found {len(dois)} DOI(s) in {from_file.name}[/dim]")
 
-    email = cfg.get("unpaywall", {}).get("email", "")
-    download_dir = cfg["download_dir"]
-    pattern = cfg.get("filename_pattern", "{year}_{source}_{author}_{title}")
+    from mosaic.workflows import download_papers
+
     ok = fail = skip = 0
     papers_list: list = []
     pdf_map: dict[str, str] = {}
 
+    for doi in dois:
+        _bare = Paper(title=doi, doi=doi, source="manual")
+        papers_list.append(cache.get_by_uid(_bare.uid) or _bare)
+
     with Progress(
         SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=False
     ) as prog:
-        for doi in dois:
-            _bare = Paper(title=doi, doi=doi, source="manual")
-            paper = cache.get_by_uid(_bare.uid) or _bare
-            papers_list.append(paper)
-            task = prog.add_task(f"{doi}…")
-            path = dl_paper(paper, download_dir, cache, email, pattern)
-            prog.remove_task(task)
-            if path:
-                ok += 1
-                pdf_map[paper.uid] = path
-                rprint(f"  [green]✓[/green] {Path(path).name}")
-            elif oa_only:
-                skip += 1
-                rprint(f"  [dim]–[/dim] {doi} (no OA copy)")
-            else:
-                fail += 1
-                rprint(f"  [red]✗[/red] {doi}")
+        task = prog.add_task(f"Downloading {len(dois)} DOI(s)…", total=len(dois))
+
+        def _on_done(job: dict) -> None:
+            prog.advance(task)
+
+        pdf_map = download_papers(papers_list, cfg, cache, progress_cb=_on_done)
+
+    for paper in papers_list:
+        path = pdf_map.get(paper.uid)
+        if path:
+            ok += 1
+            rprint(f"  [green]✓[/green] {Path(path).name}")
+        elif oa_only:
+            skip += 1
+            rprint(f"  [dim]–[/dim] {paper.doi} (no OA copy)")
+        else:
+            fail += 1
+            rprint(f"  [red]✗[/red] {paper.doi}")
 
     parts = [f"[bold]{ok}[/bold] downloaded"]
     if fail:
@@ -1798,31 +1890,42 @@ def _print_results(papers: list, show_relevance: bool = False, score_label: str 
 
 
 def _download_all(papers: list, cfg: dict, cache: Cache) -> dict[str, str]:
-    """Download PDFs for *papers*. Returns a ``{paper.uid: local_path}`` map."""
-    email = cfg.get("unpaywall", {}).get("email", "")
-    download_dir = cfg["download_dir"]
-    pattern = cfg.get("filename_pattern", "{year}_{source}_{author}_{title}")
+    """Download PDFs for *papers*. Returns a ``{paper.uid: local_path}`` map.
+
+    Uses the persistent download queue when an aria2-capable backend is
+    configured; the native backend keeps sequential behaviour.
+    """
+    from mosaic.errors import DownloadError
+    from mosaic.workflows import download_papers
+
     ok = fail = skip = 0
     pdf_map: dict[str, str] = {}
+
+    eligible = [p for p in papers if p.pdf_url or p.doi or p.pdf_candidates or p.ntrs_id]
+    skip = len(papers) - len(eligible)
 
     with Progress(
         SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=False
     ) as prog:
-        for p in papers:
-            if not (p.pdf_url or p.doi):
-                skip += 1
-                continue
-            task = prog.add_task(f"Downloading: {p.title[:50]}…")
-            path = dl_paper(p, download_dir, cache, email, pattern)
-            prog.remove_task(task)
-            if path:
-                ok += 1
-                pdf_map[p.uid] = path
-                rprint(f"  [green]✓[/green] {Path(path).name}")
-            else:
-                fail += 1
-                rprint(f"  [red]✗[/red] {p.title[:60]}")
+        task = prog.add_task(f"Downloading {len(eligible)} PDF(s)…", total=len(eligible))
 
+        def _on_done(job: dict) -> None:
+            prog.advance(task)
+            if job["status"] == "COMPLETED":
+                dest = job.get("destination") or ""
+                if dest:
+                    rprint(f"  [green]✓[/green] {Path(dest).name}")
+            elif job["status"] == "FAILED":
+                rprint(f"  [red]✗[/red] {job.get('last_error', 'failed')[:80]}")
+
+        try:
+            pdf_map = download_papers(papers, cfg, cache, progress_cb=_on_done)
+        except DownloadError as e:
+            rprint(f"[red]{e}[/red]")
+
+    for _uid in pdf_map:
+        ok += 1
+    fail = len(eligible) - ok
     console.print(f"\n[bold]Done:[/bold] {ok} downloaded, {fail} failed, {skip} skipped (no PDF)")
     return pdf_map
 
@@ -2711,6 +2814,247 @@ def cache_export(
     except ValueError as e:
         rprint(f"[red]{e}[/red]")
         raise typer.Exit(1) from None
+
+
+# ── mosaic downloads subcommands ────────────────────────────────────────────
+
+
+def _manager():
+    from mosaic.dlqueue import get_manager
+
+    cfg = cfg_mod.load()
+    cache = Cache(cfg["db_path"])
+    return get_manager(cfg, cache)
+
+
+def _fmt_bytes(n) -> str:
+    if n in (None, ""):
+        return "–"
+    n = int(n)
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return (
+                f"{n:.0f}{unit}"
+                if unit == "B"
+                else f"{n / 1024:.1f}{unit}"
+                if n < 1024**2
+                else f"{n:.1f}{unit}"
+            )
+        n /= 1024
+    return f"{n}B"
+
+
+@downloads_app.command("list")
+def downloads_list(
+    status: Annotated[
+        str, typer.Option("--status", "-s", help="Filter by status (QUEUED, DOWNLOADING, …)")
+    ] = "",
+    limit: Annotated[int, typer.Option("--limit", "-n", help="Max rows to show")] = 50,
+) -> None:
+    """List download jobs, newest first."""
+    manager = _manager()
+    jobs = manager.cache.list_jobs(status=status or None, limit=limit)
+    if not jobs:
+        rprint("[dim]No download jobs.[/dim]")
+        return
+
+    downloaded = manager.cache.get_downloaded_uids()
+    table = Table(show_header=True, header_style="cyan", box=box.SIMPLE, show_edge=False)
+    table.add_column("Job", width=8)
+    table.add_column("Status", width=12)
+    table.add_column("Progress", width=14)
+    table.add_column("Backend", width=7)
+    table.add_column("Paper")
+    table.add_column("Error", max_width=40)
+
+    status_color = {
+        "QUEUED": "cyan",
+        "DOWNLOADING": "blue",
+        "PAUSED": "yellow",
+        "VERIFYING": "blue",
+        "RETRY_WAIT": "yellow",
+        "COMPLETED": "green",
+        "FAILED": "red",
+        "CANCELLED": "dim",
+    }
+    for j in jobs:
+        color = status_color.get(j["status"], "")
+        total = j.get("total_bytes") or 0
+        done = j.get("downloaded_bytes") or 0
+        if j["status"] == "COMPLETED" or j["paper_uid"] in downloaded:
+            prog = "[green]done[/green]"
+        elif total:
+            pct = int(done / total * 100)
+            prog = f"{pct}% {_fmt_bytes(done)}/{_fmt_bytes(total)}"
+        else:
+            prog = _fmt_bytes(done)
+        paper = manager.cache.get_by_uid(j["paper_uid"])
+        title = (paper.title if paper else j["paper_uid"])[:50]
+        err = (j.get("last_error") or "").replace("\n", " ")[:38]
+        table.add_row(
+            j["job_id"][:8],
+            f"[{color}]{j['status']}[/{color}]",
+            prog,
+            j.get("backend") or "–",
+            title,
+            f"[dim]{err}[/dim]" if err else "",
+        )
+    console.print(table)
+    counts = manager.cache.job_counts()
+    summary = ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+    console.print(f"[dim]{summary}[/dim]")
+
+
+@downloads_app.command("status")
+def downloads_status() -> None:
+    """Show aggregate queue stats and backend health."""
+    manager = _manager()
+    counts = manager.cache.job_counts()
+    table = Table(show_header=False, box=box.SIMPLE, show_edge=False)
+    table.add_column("Field", style="dim", min_width=18)
+    table.add_column("Value")
+    backend = manager.dl_cfg.get("backend", "auto")
+    table.add_row("Configured backend", backend)
+    table.add_row("Effective backend", manager._effective_backend())
+    if manager._aria2 is not None:
+        table.add_row("aria2 RPC", manager._aria2.rpc_url)
+    elif backend == "aria2":
+        table.add_row("aria2", "[red]unavailable[/red]")
+    table.add_row("Concurrency", str(manager.max_concurrent))
+    table.add_row("Per-host limit", str(manager.per_host))
+    for status in (
+        "QUEUED",
+        "DOWNLOADING",
+        "PAUSED",
+        "RETRY_WAIT",
+        "VERIFYING",
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED",
+    ):
+        if counts.get(status):
+            table.add_row(status.lower(), str(counts[status]))
+    console.print(table)
+
+
+def _job_targets(manager, job_id: str, all_flag: bool, failed_flag: bool) -> list[dict]:
+    if all_flag:
+        return manager.cache.list_jobs(limit=10_000)
+    if failed_flag:
+        return manager.cache.list_jobs(status="FAILED", limit=10_000)
+    job = manager.cache.get_job(job_id)
+    if not job:
+        rprint(f"[red]No such job:[/red] {job_id}")
+        raise typer.Exit(1)
+    return [job]
+
+
+@downloads_app.command("pause")
+def downloads_pause(
+    job_id: Annotated[str, typer.Argument(help="Job ID")] = "",
+    all_jobs: Annotated[bool, typer.Option("--all", help="Pause every active job")] = False,
+) -> None:
+    """Pause one or all active downloads."""
+    manager = _manager()
+    if all_jobs:
+        n = manager.pause_all()
+        rprint(f"[green]{n} job(s) paused.[/green]")
+        return
+    if not job_id:
+        rprint("[red]Provide a job ID or --all.[/red]")
+        raise typer.Exit(1)
+    if manager.pause(job_id):
+        rprint(f"[green]Paused {job_id}.[/green]")
+    else:
+        rprint(f"[dark_orange]Job {job_id} cannot be paused (not active).[/dark_orange]")
+
+
+@downloads_app.command("resume")
+def downloads_resume(
+    job_id: Annotated[str, typer.Argument(help="Job ID")] = "",
+    all_jobs: Annotated[bool, typer.Option("--all", help="Resume every paused job")] = False,
+) -> None:
+    """Resume one or all paused downloads."""
+    manager = _manager()
+    if all_jobs:
+        n = manager.resume_all()
+        rprint(f"[green]{n} job(s) resumed.[/green]")
+        return
+    if not job_id:
+        rprint("[red]Provide a job ID or --all.[/red]")
+        raise typer.Exit(1)
+    if manager.resume(job_id):
+        rprint(f"[green]Resumed {job_id}.[/green]")
+    else:
+        rprint(f"[dark_orange]Job {job_id} is not paused.[/dark_orange]")
+
+
+@downloads_app.command("retry")
+def downloads_retry(
+    job_id: Annotated[str, typer.Argument(help="Job ID")] = "",
+    failed: Annotated[bool, typer.Option("--failed", help="Retry every FAILED job")] = False,
+) -> None:
+    """Requeue a failed/cancelled download (or all failed)."""
+    manager = _manager()
+    if failed:
+        n = manager.retry_failed()
+        rprint(f"[green]{n} failed job(s) requeued.[/green]")
+        return
+    if not job_id:
+        rprint("[red]Provide a job ID or --failed.[/red]")
+        raise typer.Exit(1)
+    if manager.retry(job_id):
+        rprint(f"[green]Requeued {job_id}.[/green]")
+    else:
+        rprint(f"[dark_orange]Job {job_id} cannot be retried.[/dark_orange]")
+
+
+@downloads_app.command("cancel")
+def downloads_cancel(
+    job_id: Annotated[str, typer.Argument(help="Job ID")] = "",
+    all_jobs: Annotated[bool, typer.Option("--all", help="Cancel every active job")] = False,
+) -> None:
+    """Cancel one or all active downloads."""
+    manager = _manager()
+    if all_jobs:
+        n = 0
+        for job in manager.cache.list_jobs(
+            status=["QUEUED", "DOWNLOADING", "PAUSED", "RETRY_WAIT"], limit=10_000
+        ):
+            if manager.cancel(job["job_id"]):
+                n += 1
+        rprint(f"[green]{n} job(s) cancelled.[/green]")
+        return
+    if not job_id:
+        rprint("[red]Provide a job ID or --all.[/red]")
+        raise typer.Exit(1)
+    if manager.cancel(job_id):
+        rprint(f"[green]Cancelled {job_id}.[/green]")
+    else:
+        rprint(f"[dark_orange]Job {job_id} is already finished.[/dark_orange]")
+
+
+@downloads_app.command("clear")
+def downloads_clear(
+    completed: Annotated[bool, typer.Option("--completed", help="Clear COMPLETED jobs")] = False,
+    failed: Annotated[bool, typer.Option("--failed", help="Clear FAILED jobs")] = False,
+    cancelled: Annotated[bool, typer.Option("--cancelled", help="Clear CANCELLED jobs")] = False,
+    all_jobs: Annotated[bool, typer.Option("--all", help="Clear all terminal jobs")] = False,
+) -> None:
+    """Remove job records — downloaded PDFs are never deleted."""
+    manager = _manager()
+    statuses: list[str] = []
+    if completed or all_jobs:
+        statuses.append("COMPLETED")
+    if failed or all_jobs:
+        statuses.append("FAILED")
+    if cancelled or all_jobs:
+        statuses.append("CANCELLED")
+    if not statuses:
+        rprint("[red]Choose what to clear: --completed, --failed, --cancelled or --all.[/red]")
+        raise typer.Exit(1)
+    n = manager.clear(statuses)
+    rprint(f"[green]{n} job record(s) cleared (PDFs untouched).[/green]")
 
 
 if __name__ == "__main__":

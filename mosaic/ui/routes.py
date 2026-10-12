@@ -377,26 +377,38 @@ def paper_detail(uid):
     )
 
 
+def _manager():
+    """Shared DownloadManager for the app's cache/DB."""
+    from mosaic.dlqueue import get_manager
+
+    return get_manager(_cfg(), _cache())
+
+
 def _run_download(uid, cfg, db_path):
-    """Executed in a worker thread."""
+    """Executed in a worker thread — routes through the persistent queue."""
     from mosaic.db import Cache
-    from mosaic.downloader import download as dl_paper
+    from mosaic.dlqueue import get_manager
 
     cache = Cache(db_path)
     paper = cache.get_by_uid(uid)
     if paper is None:
         return {"ok": False, "msg": "Paper not found."}
 
-    path = dl_paper(
-        paper,
-        cfg["download_dir"],
-        cache,
-        cfg.get("unpaywall", {}).get("email", ""),
-        cfg.get("filename_pattern", "{year}_{source}_{author}_{title}"),
-    )
+    manager = get_manager(cfg, cache)
+    job_ids = manager.enqueue_papers([paper])
+    if not job_ids:
+        # Already downloaded (verified skip)
+        rec = cache.get_download(paper.uid)
+        if rec and rec["status"] == "ok":
+            return {"ok": True, "msg": f"Already downloaded: {Path(rec['local_path']).name}"}
+        return {"ok": False, "msg": "Could not find a downloadable PDF."}
+    pdf_map = manager.wait_all(job_ids, poll=0.5)
+    path = pdf_map.get(paper.uid)
     if path:
         return {"ok": True, "msg": f"PDF saved: {Path(path).name}"}
-    return {"ok": False, "msg": "Could not find a downloadable PDF."}
+    job = cache.get_job(job_ids[0])
+    reason = (job or {}).get("last_error") or "no pdf found"
+    return {"ok": False, "msg": f"Download failed: {reason}"}
 
 
 @bp.route("/download/<path:uid>", methods=["POST"])
@@ -434,6 +446,97 @@ def download_status(job_id):
 
     result = job.result
     return f"<mark>{escape(result['msg'])}</mark>"
+
+
+# ---------------------------------------------------------------------------
+# Download queue
+# ---------------------------------------------------------------------------
+
+
+@bp.route("/downloads")
+def downloads_page():
+    """Download queue management page."""
+    return render_template("downloads.html", version=_version())
+
+
+def _jobs_table():
+    """Render the jobs table partial with progress data."""
+    manager = _manager()
+    jobs = _manager().cache.list_jobs(limit=200)
+    downloaded = manager.cache.get_downloaded_uids()
+    papers = {j["paper_uid"]: manager.cache.get_by_uid(j["paper_uid"]) for j in jobs}
+    active = any(j["status"] in ("QUEUED", "DOWNLOADING", "VERIFYING") for j in jobs)
+    return render_template(
+        "partials/downloads_table.html",
+        jobs=jobs,
+        papers=papers,
+        downloaded=downloaded,
+        active=active,
+        backend=manager._effective_backend(),
+    )
+
+
+@bp.route("/downloads/table")
+def downloads_table():
+    """HTMX polling target — refreshed while jobs are active."""
+    return _jobs_table()
+
+
+@bp.route("/downloads/enqueue", methods=["POST"])
+def downloads_enqueue():
+    """Enqueue selected papers (checkbox uids) or a whole result set."""
+    mode = request.form.get("mode", "selected")
+    manager = _manager()
+
+    if mode == "all":
+        job_id = request.form.get("job_id", "")
+        papers = current_app.config.get(f"export_{job_id}") or []
+    else:
+        uids = request.form.getlist("uid")
+        papers = [p for u in uids if (p := _cache().get_by_uid(u)) is not None]
+
+    if not papers:
+        return "<p class='stats-line'>Nothing to download.</p>"
+
+    job_ids = manager.enqueue_papers(papers)
+    skipped = len(papers) - len(job_ids)
+    if not job_ids:
+        return (
+            f"<p class='stats-line'>All {len(papers)} selected paper(s) already "
+            "downloaded (or unavailable).</p>"
+        )
+    return (
+        f"<p class='stats-line'>{len(job_ids)} download(s) queued"
+        + (f", {skipped} already downloaded" if skipped else "")
+        + f' — track progress on <a href="{url_for("ui.downloads_page")}">Downloads</a>.</p>'
+    )
+
+
+@bp.route("/downloads/<job_id>/<action>", methods=["POST"])
+def downloads_action(job_id, action):
+    """Pause/resume/retry/cancel a single job; returns refreshed table."""
+    manager = _manager()
+    if action == "pause":
+        manager.pause(job_id)
+    elif action == "resume":
+        manager.resume(job_id)
+    elif action == "retry":
+        manager.retry(job_id)
+    elif action == "cancel":
+        manager.cancel(job_id)
+    else:
+        return f"<p>Unknown action: {escape(action)}</p>", 400
+    return _jobs_table()
+
+
+@bp.route("/downloads/clear", methods=["POST"])
+def downloads_clear():
+    """Clear job records in terminal states (PDFs are never deleted)."""
+    manager = _manager()
+    statuses = request.form.getlist("status") or ["COMPLETED"]
+    removed = manager.clear(statuses)
+    table = _jobs_table()
+    return f"<p class='stats-line'>{removed} job record(s) cleared.</p>" + table
 
 
 # ---------------------------------------------------------------------------
@@ -598,6 +701,45 @@ def config_save():
     zotero_key = request.form.get("zotero_key", "").strip()
     if zotero_key:
         cfg.setdefault("zotero", {})["api_key"] = zotero_key
+
+    # Download settings
+    if request.form.get("_download_section"):
+        dl = cfg.setdefault("download", {})
+        backend = request.form.get("download_backend", "auto").strip()
+        if backend in ("native", "aria2", "auto"):
+            dl["backend"] = backend
+        for key, form_key, cast in (
+            ("max_concurrent", "download_max_concurrent", int),
+            ("per_host_concurrent", "download_per_host", int),
+            ("per_host_delay", "download_per_host_delay", float),
+            ("max_tries", "download_max_tries", int),
+        ):
+            raw = request.form.get(form_key, "").strip()
+            if raw:
+                try:
+                    dl[key] = cast(raw)
+                except ValueError:
+                    pass
+        dl["verify_pdf"] = request.form.get("download_verify_pdf") == "on"
+        dl["skip_existing"] = request.form.get("download_skip_existing") == "on"
+        rpc_url = request.form.get("download_aria2_rpc_url", "").strip()
+        if rpc_url:
+            dl["aria2_rpc_url"] = rpc_url
+        secret = request.form.get("download_aria2_rpc_secret", "").strip()
+        if secret:
+            dl["aria2_rpc_secret"] = secret
+        dl["aria2_auto_start"] = request.form.get("download_aria2_auto_start") == "on"
+        dl["aria2_fallback_native"] = request.form.get("download_aria2_fallback") == "on"
+        dl["aria2_max_download_limit"] = request.form.get(
+            "download_aria2_max_download_limit", ""
+        ).strip()
+        # Live-update the running manager so new settings apply immediately.
+        try:
+            from mosaic.dlqueue import get_manager
+
+            get_manager(cfg, _cache()).update_cfg(cfg)
+        except Exception:
+            pass
 
     # Source toggles — only update if the form actually included the sources
     # section (HTML checkboxes are absent when unchecked; a hidden sentinel
@@ -1020,20 +1162,22 @@ def bulk_page():
 
 
 def _run_bulk_download(dois, cfg, db_path):
-    """Executed in a worker thread."""
+    """Executed in a worker thread — routes through the persistent queue."""
     from mosaic.db import Cache
-    from mosaic.downloader import download as dl_paper
+    from mosaic.errors import DownloadError
+    from mosaic.workflows import download_papers
 
     cache = Cache(db_path)
-    email = cfg.get("unpaywall", {}).get("email", "")
-    download_dir = cfg["download_dir"]
-    pattern = cfg.get("filename_pattern", "{year}_{source}_{author}_{title}")
+    papers = [Paper(title=doi, doi=doi, source="manual") for doi in dois]
+    try:
+        pdf_map = download_papers(papers, cfg, cache)
+    except DownloadError as e:
+        return {"ok": 0, "fail": len(dois), "results": [], "error": str(e)}
+
     ok = fail = 0
     results = []
-
-    for doi in dois:
-        paper = Paper(title=doi, doi=doi, source="manual")
-        path = dl_paper(paper, download_dir, cache, email, pattern)
+    for doi, paper in zip(dois, papers, strict=True):
+        path = pdf_map.get(paper.uid)
         if path:
             ok += 1
             results.append({"doi": doi, "status": "ok", "path": Path(path).name})
@@ -1109,6 +1253,8 @@ def bulk_status(job_id):
         return f"<article>Bulk download failed: {escape(job.error_message)}</article>"
 
     result = job.result
+    if result.get("error"):
+        return f"<article>Bulk download failed: {escape(result['error'])}</article>"
     html = f"<p><strong>Done:</strong> {result['ok']} downloaded, {result['fail']} failed.</p>"
     if result["results"]:
         html += '<table role="grid"><thead><tr><th>DOI</th><th>Status</th><th>File</th></tr></thead><tbody>'

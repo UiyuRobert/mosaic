@@ -1,0 +1,98 @@
+{% macro human_bytes(n) -%}
+  {%- if n is none or n == '' -%}&ndash;
+  {%- elif n < 1024 -%}{{ n }} B
+  {%- elif n < 1048576 -%}{{ '%.1f' | format(n/1024) }} KB
+  {%- elif n < 1073741824 -%}{{ '%.1f' | format(n/1048576) }} MB
+  {%- else -%}{{ '%.2f' | format(n/1073741824) }} GB{%- endif -%}
+{%- endmacro %}
+
+<p class="stats-line">
+  Backend: <strong>{{ backend }}</strong>
+  &mdash;
+  <span id="clear-controls" style="display:inline-flex;gap:.3rem;">
+    <button hx-post="{{ url_for('ui.downloads_clear') }}"
+            hx-vals='{"status": ["COMPLETED"]}'
+            hx-target="#downloads-table" hx-swap="innerHTML"
+            class="outline secondary" style="padding:.15rem .5rem;font-size:.85em;">
+      Clear completed
+    </button>
+    <button hx-post="{{ url_for('ui.downloads_clear') }}"
+            hx-vals='{"status": ["FAILED"]}'
+            hx-target="#downloads-table" hx-swap="innerHTML"
+            class="outline secondary" style="padding:.15rem .5rem;font-size:.85em;">
+      Clear failed
+    </button>
+  </span>
+</p>
+
+{% if not jobs %}
+<p>No download jobs yet. Select papers on the
+  <a href="{{ url_for('ui.search_page') }}">Search</a> page and choose
+  &ldquo;Download selected&rdquo; or &ldquo;All&rdquo;.</p>
+{% else %}
+<figure>
+<table role="grid">
+  <thead>
+    <tr>
+      <th>Paper</th>
+      <th>Status</th>
+      <th>Progress</th>
+      <th>Destination</th>
+      <th>Error</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for j in jobs %}
+    {% set p = papers.get(j.paper_uid) %}
+    <tr>
+      <td>
+        {% if p %}<a href="{{ url_for('ui.paper_detail', uid=p.uid) }}">{{ p.title[:60] }}</a>
+        {% else %}{{ j.paper_uid[:40] }}{% endif %}
+      </td>
+      <td>
+        {% set cls = {'COMPLETED': 'badge-oa', 'FAILED': 'badge-closed',
+                      'DOWNLOADING': '', 'PAUSED': 'badge-closed'} %}
+        <strong>{{ j.status }}</strong>
+        {% if j.backend %}<small>({{ j.backend }})</small>{% endif %}
+      </td>
+      <td>
+        {% if j.status == 'COMPLETED' or j.paper_uid in downloaded %}
+          &#10003;
+        {% elif j.total_bytes %}
+          {{ ((j.downloaded_bytes or 0) / j.total_bytes * 100) | round | int }}%
+          ({{ human_bytes(j.downloaded_bytes) }}/{{ human_bytes(j.total_bytes) }})
+        {% else %}
+          {{ human_bytes(j.downloaded_bytes) }}
+        {% endif %}
+      </td>
+      <td><small>{{ (j.destination or '')[-60:] }}</small></td>
+      <td><small>{{ (j.last_error or '')[:60] }}</small></td>
+      <td style="white-space:nowrap;">
+        {% if j.status in ('QUEUED', 'DOWNLOADING', 'RETRY_WAIT') %}
+        <button hx-post="{{ url_for('ui.downloads_action', job_id=j.job_id, action='pause') }}"
+                hx-target="#downloads-table" hx-swap="innerHTML"
+                class="outline" style="padding:.1rem .4rem;font-size:.8em;">pause</button>
+        {% endif %}
+        {% if j.status == 'PAUSED' %}
+        <button hx-post="{{ url_for('ui.downloads_action', job_id=j.job_id, action='resume') }}"
+                hx-target="#downloads-table" hx-swap="innerHTML"
+                class="outline" style="padding:.1rem .4rem;font-size:.8em;">resume</button>
+        {% endif %}
+        {% if j.status in ('FAILED', 'CANCELLED') %}
+        <button hx-post="{{ url_for('ui.downloads_action', job_id=j.job_id, action='retry') }}"
+                hx-target="#downloads-table" hx-swap="innerHTML"
+                class="outline" style="padding:.1rem .4rem;font-size:.8em;">retry</button>
+        {% endif %}
+        {% if j.status not in ('COMPLETED', 'CANCELLED', 'FAILED') %}
+        <button hx-post="{{ url_for('ui.downloads_action', job_id=j.job_id, action='cancel') }}"
+                hx-target="#downloads-table" hx-swap="innerHTML"
+                class="outline secondary" style="padding:.1rem .4rem;font-size:.8em;">cancel</button>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</figure>
+{% endif %}

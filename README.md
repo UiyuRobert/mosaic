@@ -10,7 +10,7 @@
 
 ### Multi-sOurce Scientific Article Indexer and Collector
 
-> Search, discover, and download scientific papers from 21 sources — with a single command.
+> Search, discover, and download scientific papers from 22 sources — with a single command.
 > Ask questions, find gaps, compare methods, and map citation networks with fully local AI. Or send results to [Google NotebookLM](https://notebooklm.google.com/) for AI-powered summaries, podcasts, and more.
 
 [![Version](https://img.shields.io/pypi/v/mosaic-search?label=version)](https://pypi.org/project/mosaic-search/)
@@ -33,7 +33,7 @@
 ## What MOSAIC does
 
 ```bash
-# Search 21 sources at once, deduplicate, download OA PDFs
+# Search 22 sources at once, deduplicate, download OA PDFs
 mosaic search "attention is all you need" --oa-only --download
 
 # Discover related literature from any DOI or arXiv ID — no query needed
@@ -278,7 +278,7 @@ See the [Agent Workflows guide](https://szaghi.github.io/mosaic/guide/agent-work
 <div>
 <table>
 <tr>
-<td><b>🌐 Dozens sources, one command</b><br><sub>arXiv · Semantic Scholar · OpenAlex · PubMed · PubMed Central · Europe PMC · DOAJ · Crossref · Springer · IEEE · NASA ADS · Zenodo · BASE · CORE · DBLP · HAL · ScienceDirect · bioRxiv/medRxiv · and more — all with <code>mosaic search "query"</code>. <a href="https://szaghi.github.io/mosaic/guide/sources">Sources guide</a></sub></td>
+<td><b>🌐 Dozens sources, one command</b><br><sub>arXiv · Semantic Scholar · OpenAlex · PubMed · PubMed Central · Europe PMC · DOAJ · Crossref · Springer · IEEE · NASA ADS · NASA NTRS · Zenodo · BASE · CORE · DBLP · HAL · ScienceDirect · bioRxiv/medRxiv · and more — all with <code>mosaic search "query"</code>. <a href="https://szaghi.github.io/mosaic/guide/sources">Sources guide</a></sub></td>
 <td><b>🔭 Find similar papers</b><br><sub><code>mosaic similar &lt;doi&gt;</code> — discover related literature from any DOI or arXiv ID via OpenAlex graph + Semantic Scholar ML, no query needed. <a href="https://szaghi.github.io/mosaic/guide/similar">Find similar guide</a></sub></td>
 <td><b>✨ Smart deduplication</b><br><sub>Results merged by DOI: best citation count, richest abstract, earliest PDF URL wins. <a href="https://szaghi.github.io/mosaic/guide/usage">Usage guide</a></sub></td>
 </tr>
@@ -328,6 +328,7 @@ See the [Agent Workflows guide](https://szaghi.github.io/mosaic/guide/agent-work
 | **BASE** | `base` | 300 M+ docs from 10 000+ repos | None | When OA + PDF format |
 | **CORE** | `core` | 200 M+ OA full-text from repos | Free API key | `downloadUrl` field |
 | **NASA ADS** | `ads` | 15 M+ astronomy & astrophysics records | Free API token | OA articles |
+| **NASA NTRS** | `ntrs` | NASA technical reports, conference papers & contractor docs | None | Public attachments |
 | **IEEE Xplore** | `ieee` | 5 M+ IEEE journals, transactions & conference proceedings | Free API key | OA articles |
 | **Zenodo** | `zenodo` | 3 M+ OA research outputs (papers, datasets, software) | None (token optional) | Attached PDF files |
 | **Crossref** | `crossref` | 150 M+ scholarly works (DOI registry) | None (email optional) | When deposited by publisher |
@@ -358,7 +359,7 @@ pip install mosaic-search         # inside a virtualenv
 
 ### Optional features
 
-The core install covers all 21 search sources and the full CLI. Extra dependencies are only needed for specific opt-in features:
+The core install covers all 22 search sources and the full CLI. Extra dependencies are only needed for specific opt-in features:
 
 | Feature | Extra | Install |
 |---------|-------|---------|
