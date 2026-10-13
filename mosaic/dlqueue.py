@@ -30,6 +30,7 @@ from mosaic.downloader import (
     _candidates_for,
     _destination_for,
     _fetch,
+    _is_doi_url,
     _quick_pdf_check,
     host_of,
 )
@@ -47,6 +48,8 @@ _BACKOFF_MAX = 300.0
 
 # aria2 errorCode → DownloadError-ish reason (best effort; errorMessage
 # containing an HTTP status takes precedence when parseable).
+_HOST_FAIL_MAX = 3
+
 _ARIA2_REASONS = {
     2: "timeout",
     3: "not_found",
@@ -90,11 +93,17 @@ class DownloadManager:
         self.backend = self._resolve_backend()
         self._aria2: Aria2Client | None = None
         self._executor = ThreadPoolExecutor(max_workers=self.max_concurrent)
+        # Consecutive-failure counter per host — a tarpitting or bot-blocking
+        # host is skipped after _HOST_FAIL_MAX failures so it cannot stall the
+        # whole queue. Reset on any successful fetch from that host.
+        self._host_fails: dict[str, int] = {}
         self._lock = threading.RLock()
         self._stop = threading.Event()
         self._paused_jobs: set[str] = set()  # user-pause markers (native abort)
         self._cancelled_jobs: set[str] = set()
         self._inflight: dict[str, Future | None] = {}
+        # job_id -> (last_completed_bytes, last_change_ts) for stall detection
+        self._progress: dict[str, tuple[int, float]] = {}
         self._host_active: dict[str, int] = {}
         self._host_last: dict[str, float] = {}
         self._thread: threading.Thread | None = None
@@ -135,7 +144,7 @@ class DownloadManager:
         if self._thread:
             self._thread.join(timeout=5)
         self._executor.shutdown(wait=wait, cancel_futures=not wait)
-        if self._aria2 and self._aria2.process is not None and not self._managed_shutdown:
+        if self._aria2 and self._aria2.managed and not self._managed_shutdown:
             self._aria2.shutdown()
             self._managed_shutdown = True
 
@@ -192,7 +201,14 @@ class DownloadManager:
             # Cheap candidates only (source-supplied URLs). Unpaywall
             # resolution is deferred to the worker so enqueue stays fast.
             candidates = self._cheap_candidates(paper)
-            first = candidates[0].download_url if candidates else None
+            first = next(
+                (
+                    c.download_url
+                    for c in candidates
+                    if not self._host_cooled(host_of(c.download_url))
+                ),
+                None,
+            )
             self.cache.enqueue_job(
                 {
                     "job_id": job_id,
@@ -221,8 +237,10 @@ class DownloadManager:
                 continue
             if c.download_url and c.download_url not in seen:
                 seen.add(c.download_url)
+                if _is_doi_url(c.download_url):
+                    continue
                 out.append(c)
-        if paper.pdf_url and paper.pdf_url not in seen:
+        if paper.pdf_url and paper.pdf_url not in seen and not _is_doi_url(paper.pdf_url):
             out.append(
                 PDFCandidate(
                     paper_uid=paper.uid,
@@ -284,6 +302,11 @@ class DownloadManager:
                 return True
             except Aria2Error as e:
                 log.debug("aria2 unpause failed for %s: %s", job_id, e)
+        # Requeue for a fresh dispatch — drop the stale inflight entry so the
+        # re-dispatch does not double-count this host's concurrency slot.
+        with self._lock:
+            inflight = self._inflight.pop(job_id, {}) or {}
+        self._unmark_host(inflight.get("host") or job.get("host") or "")
         self.cache.update_job(job_id, status="QUEUED")
         return True
 
@@ -294,6 +317,11 @@ class DownloadManager:
         with self._lock:
             self._cancelled_jobs.add(job_id)
             self._paused_jobs.discard(job_id)
+            inflight = self._inflight.pop(job_id, {}) or {}
+        # Release the concurrency slot and per-host allowance — otherwise each
+        # cancel leaks an _inflight entry and the scheduler eventually refuses
+        # to dispatch anything (active_count >= max_concurrent forever).
+        self._unmark_host(inflight.get("host") or job.get("host") or "")
         if job["backend"] == "aria2" and job.get("aria2_gid") and self._aria2:
             self._aria2.remove(job["aria2_gid"])
         self._cleanup_partials(job)
@@ -374,6 +402,17 @@ class DownloadManager:
                 return
             self._dispatch(job)
 
+    def _host_cooled(self, host: str) -> bool:
+        return bool(host) and self._host_fails.get(host, 0) >= _HOST_FAIL_MAX
+
+    def _note_host_fail(self, host: str) -> None:
+        if host:
+            self._host_fails[host] = self._host_fails.get(host, 0) + 1
+
+    def _note_host_ok(self, host: str) -> None:
+        if host:
+            self._host_fails.pop(host, None)
+
     def _active_count(self) -> int:
         with self._lock:
             return len(self._inflight)
@@ -450,6 +489,11 @@ class DownloadManager:
             return str(dest), ""
 
         candidates = self._job_candidates(job, paper)
+        # Native workers retry within one attempt — start from the job's
+        # current URL so the last-tried candidate is hit again first.
+        current = job.get("url")
+        if current:
+            candidates.sort(key=lambda c: 0 if c.download_url == current else 1)
 
         last_p = [0.0, 0]
 
@@ -576,6 +620,11 @@ class DownloadManager:
             "split": str(self.dl_cfg.get("max_split", 1)),
             "max-tries": "3",
             "retry-wait": "2",
+            # Hard per-attempt caps — without them a tarpitted host (slow
+            # drip-feed instead of a clean error) can hold a queue slot for
+            # many minutes and starve the job's viable candidates.
+            "timeout": "45",
+            "connect-timeout": "15",
             "user-agent": "MOSAIC/1.5 (literature search)",
         }
         limit = self.dl_cfg.get("aria2_max_download_limit", "")
@@ -601,14 +650,55 @@ class DownloadManager:
             try:
                 st = self._aria2.tell_status(job["aria2_gid"])
             except Aria2Error as e:
-                log.debug("tellStatus failed for %s: %s", job["job_id"], e)
+                if "not found" in str(e).lower():
+                    # The daemon forgot this GID (restart without session,
+                    # purged result). Requeue so the download restarts —
+                    # continue=true plus any .part file resumes bytes.
+                    lost_id = job["job_id"]
+                    self._progress.pop(lost_id, None)
+                    with self._lock:
+                        inflight = self._inflight.pop(lost_id, {}) or {}
+                    self._unmark_host(inflight.get("host") or job.get("host") or "")
+                    self.cache.update_job(
+                        lost_id,
+                        status="QUEUED",
+                        aria2_gid=None,
+                        last_error=(job.get("last_error") or "") + " [gid lost — requeued]",
+                    )
+                else:
+                    log.debug("tellStatus failed for %s: %s", job["job_id"], e)
                 continue
             status = st.get("status")
             job_id = job["job_id"]
             if status in ("active", "waiting"):
+                nbytes = int(st.get("completedLength") or 0)
+                prev_bytes, _t = self._progress.get(job_id, (-1, 0.0))
+                if nbytes != prev_bytes:
+                    self._progress[job_id] = (nbytes, time.time())
+                elif time.time() - self._progress.get(job_id, (0, time.time()))[1] > float(
+                    self.dl_cfg.get("stall_timeout", 240)
+                ):
+                    # Transfer holds a slot but moves no bytes (dead host
+                    # trickling, connect-phase hang aria2 doesn't flag).
+                    # Kill the gid and treat it as a failed attempt so the
+                    # queue can advance candidates or give up cleanly.
+                    log.warning("job %s stalled at %d bytes — forcing failure", job_id, nbytes)
+                    try:
+                        self._aria2.remove(job["aria2_gid"])
+                    except Exception:
+                        pass
+                    with self._lock:
+                        inflight = self._inflight.pop(job_id, {}) or {}
+                    self._unmark_host(inflight.get("host") or job.get("host") or "")
+                    self._progress.pop(job_id, None)
+                    self._handle_failure(
+                        job,
+                        DownloadError("timeout", "no download progress — stalled transfer"),
+                    )
+                    continue
                 self.cache.update_job(
                     job_id,
-                    downloaded_bytes=int(st.get("completedLength") or 0),
+                    downloaded_bytes=nbytes,
                     total_bytes=int(st.get("totalLength") or 0) or None,
                 )
             elif status == "paused":
@@ -620,11 +710,13 @@ class DownloadManager:
                 with self._lock:
                     inflight = self._inflight.pop(job_id, {}) or {}
                 self._unmark_host(inflight.get("host") or job.get("host") or "")
+                self._progress.pop(job_id, None)
                 reason = _aria2_reason(int(st.get("errorCode") or 0), st.get("errorMessage") or "")
                 self._handle_failure(job, DownloadError(reason, st.get("errorMessage") or reason))
             elif status == "removed":
                 with self._lock:
                     inflight = self._inflight.pop(job_id, {}) or {}
+                self._progress.pop(job_id, None)
                 self._unmark_host(inflight.get("host") or job.get("host") or "")
                 if job["status"] not in ("CANCELLED", "PAUSED"):
                     self.cache.update_job(job_id, status="CANCELLED")
@@ -635,6 +727,7 @@ class DownloadManager:
         with self._lock:
             inflight = self._inflight.pop(job_id, {}) or {}
         self._unmark_host(inflight.get("host") or job.get("host") or "")
+        self._progress.pop(job_id, None)
         self.cache.update_job(job_id, status="VERIFYING")
         dest = Path(job["destination"])
         part = Path(str(dest) + ".part")
@@ -658,6 +751,7 @@ class DownloadManager:
             self._handle_failure(job, e)
 
     def _complete(self, job: dict, dest: str) -> None:
+        self._note_host_ok(job.get("host") or host_of(job.get("url") or ""))
         self.cache.set_download(job.get("paper_uid", ""), dest, "ok")
         self.cache.update_job(
             job["job_id"],
@@ -676,6 +770,9 @@ class DownloadManager:
             stored = [
                 PDFCandidate.from_dict({k: v for k, v in c.items() if k != "filename"}) for c in raw
             ]
+            # Jobs queued before the doi.org filter may still carry DOI
+            # redirect URLs — drop them here too so old lists don't revive.
+            stored = [c for c in stored if not _is_doi_url(c.download_url)]
         except (TypeError, ValueError):
             stored = []
         # Merge in deferred resolution (Unpaywall alternates for DOI
@@ -685,22 +782,25 @@ class DownloadManager:
             if c.download_url not in known:
                 known.add(c.download_url)
                 stored.append(c)
-        # Prefer the job's current URL first (it may point at an alternate
-        # candidate chosen after a previous failure).
-        current = job.get("url")
-        if current:
-            stored.sort(key=lambda c: 0 if c.download_url == current else 1)
+        # NOTE: the list must keep a *stable* order — ``_handle_failure``
+        # locates the job's current URL inside it to advance to the next
+        # untried candidate. Reordering here (e.g. current-first) makes
+        # every position lookup return index 0 and the advance loop
+        # ping-pong forever between two URLs without consuming retries.
         return stored
 
     def _handle_failure(self, job: dict, err: DownloadError) -> None:
         job_id = job["job_id"]
         retry_count = int(job.get("retry_count") or 0)
+        if err.reason != "cancelled":
+            self._note_host_fail(job.get("host") or "")
 
         # Advance to the next untried candidate before consuming a retry —
         # only meaningful for aria2 (one URL per attempt); the native worker
         # already walks the full candidate list inside a single attempt.
         # The full list is recomputed so deferred candidates (Unpaywall)
-        # are reached after the stored ones are exhausted.
+        # are reached after the stored ones are exhausted. Candidates on
+        # hosts past the failure breaker are skipped outright.
         candidates: list = []
         if job.get("backend") == "aria2" and err.reason != "cancelled":
             paper = self.cache.get_by_uid(job.get("paper_uid", ""))
@@ -709,11 +809,15 @@ class DownloadManager:
             urls = [c.download_url for c in candidates]
             cur = job.get("url")
             idx = urls.index(cur) if cur in urls else -1
-            if idx + 1 < len(urls):
+            nxt = next(
+                (u for u in urls[idx + 1 :] if not self._host_cooled(host_of(u))),
+                None,
+            )
+            if nxt is not None:
                 self.cache.update_job(
                     job_id,
-                    url=urls[idx + 1],
-                    host=host_of(urls[idx + 1]),
+                    url=nxt,
+                    host=host_of(nxt),
                     candidates_json=json.dumps([c.to_dict() for c in candidates]),
                     status="QUEUED",
                     last_error=f"{err.reason}: {err}",
@@ -753,13 +857,21 @@ class DownloadManager:
         *,
         poll: float = 0.5,
         progress_cb: object = None,
+        timeout: float = 0,
     ) -> dict[str, str]:
         """Block until all *job_ids* reach a terminal state.
+
+        Args:
+            timeout: optional wall-clock bound in seconds. ``0`` (default)
+                waits forever — callers that cannot block indefinitely
+                should pass a deadline and treat still-pending jobs as
+                timed out.
 
         Returns:
             ``{paper_uid: local_path}`` for COMPLETED jobs.
         """
         pending = set(job_ids)
+        deadline = time.monotonic() + timeout if timeout else None
         while pending:
             for job_id in list(pending):
                 job = self.cache.get_job(job_id)
@@ -768,6 +880,8 @@ class DownloadManager:
                     if progress_cb and job:
                         progress_cb(job)
             if pending:
+                if deadline is not None and time.monotonic() >= deadline:
+                    break
                 time.sleep(poll)
         result: dict[str, str] = {}
         for job_id in job_ids:

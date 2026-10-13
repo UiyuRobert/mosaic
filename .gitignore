@@ -24,6 +24,9 @@ docs/.vitepress/dist/
 mosaic-papers/
 *.db
 
+# Local validation artifacts (real-downloaded PDFs, run state)
+local-validation/
+
 # Config (may contain API keys)
 .env
 config.toml

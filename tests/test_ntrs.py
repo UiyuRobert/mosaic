@@ -306,3 +306,89 @@ class TestSearch:
     def test_source_available_without_key(self, ntrs):
         assert ntrs.available() is True
         assert ntrs.name == "NASA NTRS"
+
+
+class TestLazyAttachments:
+    """Records that arrive with ``downloadsAvailable`` but no embedded
+    ``downloads`` list must resolve attachments via /citations/{id}/downloads
+    instead of being misjudged as undownloadable."""
+
+    def test_downloads_available_without_list_marks_oa_only(self, ntrs):
+        rec = _record(downloads=[], downloadsAvailable=True)
+        with patch("httpx.request", return_value=_resp(200, _search_payload([rec]))):
+            papers = ntrs.search("x")
+        p = papers[0]
+        assert p.is_open_access is True
+        assert p.pdf_url is None
+        assert p.pdf_candidates == []
+
+    def test_pdf_candidates_for_fetches_attachments(self, ntrs):
+        downloads = [
+            {
+                "draft": False,
+                "mimetype": "application/pdf",
+                "name": "doc.pdf",
+                "type": "STI",
+                "links": {"pdf": "/api/citations/20200000325/downloads/doc.pdf"},
+            }
+        ]
+        with patch("httpx.request", return_value=_resp(200, {"downloads": downloads})) as m:
+            cands = ntrs.pdf_candidates_for("20200000325")
+        assert m.call_args.args[0] == "GET"
+        assert m.call_args.args[1].endswith("/api/citations/20200000325/downloads")
+        assert len(cands) == 1
+        assert cands[0]["download_url"].endswith("/downloads/doc.pdf")
+        assert cands[0]["source"] == "ntrs"
+
+    def test_downloader_uses_lazy_ntrs_candidates(self):
+        """_candidates_for must consult the downloads endpoint for an
+        NTRS paper that carried no attachment list."""
+        from mosaic.downloader import _candidates_for
+        from mosaic.models import Paper
+
+        p = Paper(
+            title="TM report",
+            ntrs_id="20200000325",
+            is_open_access=True,
+            source="NASA NTRS",
+        )
+        fake = [
+            {
+                "paper_uid": "ntrs:20200000325",
+                "download_url": "https://ntrs.nasa.gov/api/citations/20200000325/downloads/doc.pdf",
+                "landing_url": "https://ntrs.nasa.gov/citations/20200000325",
+                "source": "ntrs",
+                "version": "",
+                "license": "",
+                "is_open_access": True,
+                "confidence": 0.95,
+                "discovered_at": "",
+            }
+        ]
+        with patch.object(NTRSSource, "pdf_candidates_for", return_value=fake) as m:
+            cands = _candidates_for(p, "")
+        m.assert_called_once_with("20200000325")
+        assert [c.download_url for c in cands] == [fake[0]["download_url"]]
+        assert cands[0].paper_uid == p.uid
+
+    def test_downloader_skips_lazy_fetch_when_candidates_exist(self):
+        from mosaic.downloader import _candidates_for
+        from mosaic.models import Paper
+
+        p = Paper(
+            title="TM report",
+            ntrs_id="20200000325",
+            pdf_url="https://example.org/x.pdf",
+            source="NASA NTRS",
+        )
+        with patch.object(NTRSSource, "pdf_candidates_for") as m:
+            _candidates_for(p, "")
+        m.assert_not_called()
+
+    def test_lazy_fetch_failure_is_nonfatal(self):
+        from mosaic.downloader import _candidates_for
+        from mosaic.models import Paper
+
+        p = Paper(title="TM report", ntrs_id="20200000325", source="NASA NTRS")
+        with patch.object(NTRSSource, "pdf_candidates_for", side_effect=SourceError("403")):
+            assert _candidates_for(p, "") == []

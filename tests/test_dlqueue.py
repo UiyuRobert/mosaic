@@ -220,6 +220,37 @@ class TestControls:
         assert job["status"] == "CANCELLED"
         assert not manager.cancel(ids[0])  # already terminal
 
+    def test_cancel_inflight_releases_slot(self, manager, cache):
+        # Regression: cancel() must release the concurrency slot and per-host
+        # allowance, or repeated cancels leak _inflight entries until the
+        # scheduler permanently refuses to dispatch (queue freeze).
+        p = _paper()
+        ids = manager.enqueue_papers([p])
+        job = cache.get_job(ids[0])
+        manager._inflight[ids[0]] = {"gid": "g1", "host": job["host"]}
+        manager._mark_host_start(job["host"])
+        assert manager.cancel(ids[0])
+        assert ids[0] not in manager._inflight
+        assert manager._host_active.get(job["host"], 0) == 0
+        assert manager._active_count() == 0
+
+    def test_cancel_then_dispatch_continues(self, manager, cache):
+        # Fill every concurrency slot with inflight jobs, cancel them all and
+        # prove the scheduler still dispatches new work afterwards.
+        manager.max_concurrent = 2
+        papers = [_paper("a"), _paper("b")]
+        ids = manager.enqueue_papers(papers)
+        for jid in ids:
+            job = cache.get_job(jid)
+            manager._inflight[jid] = {"gid": jid, "host": job["host"]}
+        assert manager._active_count() >= manager.max_concurrent
+        for jid in ids:
+            manager.cancel(jid)
+        assert manager._active_count() == 0
+        job = cache.get_job(ids[0])
+        manager._dispatch(job)  # would early-return while slots are leaked
+        assert cache.get_job(ids[0])["status"] != "QUEUED" or ids[0] in manager._inflight
+
     def test_retry_failed_requeues(self, manager, cache):
         p = _paper()
         ids = manager.enqueue_papers([p])

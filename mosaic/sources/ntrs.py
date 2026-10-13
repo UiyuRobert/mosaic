@@ -278,6 +278,18 @@ class NTRSSource(BaseSource):
             ``(best_pdf_url_or_None, candidate_dicts)``.
         """
         downloads = rec.get("downloads") or []
+        candidates = self.candidates_from_downloads(downloads, ntrs_id)
+        best = candidates[0]["download_url"] if candidates else None
+        return best, candidates
+
+    def candidates_from_downloads(self, downloads: list[dict], ntrs_id: str) -> list[dict]:
+        """Build ordered PDF candidate dicts from a raw attachment list.
+
+        Shared by :meth:`_parse_downloads` (search-time, attachments embedded
+        in the record) and :meth:`pdf_candidates_for` (lazy fetch via the
+        ``/citations/{id}/downloads`` endpoint for records that arrived
+        without an attachment list — e.g. ``downloadsAvailable`` only).
+        """
         candidates: list[dict] = []
         landing = f"{self._base}/citations/{ntrs_id}"
 
@@ -311,9 +323,7 @@ class NTRSSource(BaseSource):
                     "filename": entry.get("name") or "",
                 }
             )
-
-        best = candidates[0]["download_url"] if candidates else None
-        return best, candidates
+        return candidates
 
     # -- Auxiliary API -------------------------------------------------------
 
@@ -335,6 +345,15 @@ class NTRSSource(BaseSource):
         if isinstance(data, list):
             return data
         return data.get("downloads") or []
+
+    def pdf_candidates_for(self, ntrs_id: str) -> list[dict]:
+        """Fetch attachments for *ntrs_id* and return PDF candidate dicts.
+
+        Used by the download pipeline when a search record arrived without
+        an embedded ``downloads`` list (``downloadsAvailable`` only), so a
+        public document that exists is not misjudged as undownloadable.
+        """
+        return self.candidates_from_downloads(self.get_downloads(ntrs_id), ntrs_id)
 
 
 # ---------------------------------------------------------------------------

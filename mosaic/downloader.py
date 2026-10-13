@@ -155,11 +155,47 @@ def _candidates_for(paper: Paper, unpaywall_email: str) -> list[PDFCandidate]:
                 confidence=0.85,
             )
         )
+    # NTRS search records may carry ``downloadsAvailable`` without the
+    # attachment list — fetch it lazily so a public document is not
+    # misjudged as undownloadable.
+    if paper.ntrs_id and not candidates:
+        for raw in _ntrs_attachment_candidates(paper):
+            _add(raw)
     if paper.doi and unpaywall_email:
         for cand in unpaywall.resolve_candidates(paper.doi, unpaywall_email, paper.uid):
             _add(cand)
     candidates.sort(key=lambda c: c.confidence, reverse=True)
-    return candidates
+    # A doi.org URL is always a 302 into a landing page — it can never
+    # stream a PDF. Unpaywall records sometimes carry ``url`` pointing at
+    # doi.org when no direct file exists; trying it wastes a full HTTP
+    # round-trip for a guaranteed HTML result.
+    return [c for c in candidates if not _is_doi_url(c.download_url)]
+
+
+def _is_doi_url(url: str) -> bool:
+    try:
+        return (urlparse(url).hostname or "").lower() in ("doi.org", "dx.doi.org")
+    except Exception:
+        return False
+
+
+def _ntrs_attachment_candidates(paper: Paper) -> list[PDFCandidate]:
+    """Lazily resolve NTRS attachments when the record carried none."""
+    try:
+        from mosaic.sources.ntrs import NTRSSource
+
+        out: list[PDFCandidate] = []
+        for raw in NTRSSource().pdf_candidates_for(paper.ntrs_id or ""):
+            try:
+                cand = PDFCandidate.from_dict({k: v for k, v in raw.items() if k != "filename"})
+            except TypeError:
+                continue
+            cand.paper_uid = paper.uid
+            out.append(cand)
+        return out
+    except Exception:
+        log.debug("NTRS attachment fetch failed for %s", paper.ntrs_id, exc_info=True)
+        return []
 
 
 def _quick_pdf_check(path: Path) -> bool:

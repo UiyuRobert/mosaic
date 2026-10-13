@@ -102,9 +102,15 @@ class TestEnsureClient:
         }
 
     def test_attaches_to_running_daemon(self, tmp_path):
-        client = ensure_client(self._cfg(tmp_path), state_dir=tmp_path)
-        # Without a daemon running this should try to spawn — patch is_alive
-        assert client is None or client.is_alive() is False or True  # placeholder
+        # First call must not spawn or attach to a real daemon — pretend
+        # no daemon answers and aria2c is absent (keeps the test hermetic
+        # even when a live daemon happens to run on this machine).
+        with (
+            patch.object(Aria2Client, "is_alive", return_value=False),
+            patch("mosaic.aria2.find_binary", return_value=None),
+        ):
+            client = ensure_client(self._cfg(tmp_path), state_dir=tmp_path)
+        assert client is None
         with patch.object(Aria2Client, "is_alive", return_value=True):
             c = ensure_client(self._cfg(tmp_path), state_dir=tmp_path)
         assert c is not None
@@ -147,6 +153,83 @@ class TestEnsureClient:
         ):
             assert ensure_client(self._cfg(tmp_path, auto_start=False), state_dir=tmp_path) is None
 
+    def test_spawn_is_direct_child_not_daemon(self, tmp_path):
+        """Regression: --daemon made the parent exit(0) and proc.poll() then
+        misreported a live daemon as a startup failure."""
+        calls = {"n": 0}
+
+        def alive(self):
+            calls["n"] += 1
+            return calls["n"] > 1
+
+        fake_proc = MagicMock()
+        fake_proc.poll.return_value = None
+        fake_proc.pid = 4321
+        with (
+            patch.object(Aria2Client, "is_alive", alive),
+            patch("mosaic.aria2.find_binary", return_value="/usr/bin/aria2c"),
+            patch("subprocess.Popen", return_value=fake_proc) as popen,
+        ):
+            client = ensure_client(self._cfg(tmp_path), state_dir=tmp_path)
+        assert client is not None
+        args = popen.call_args.args[0]
+        assert "--daemon=true" not in args
+        assert popen.call_args.kwargs.get("start_new_session") is True
+
+    def test_daemon_state_written_and_reattached(self, tmp_path):
+        """An orphaned daemon (our crashed previous run) is re-attached via
+        aria2.daemon.json instead of spawning a second one."""
+        state = tmp_path / "aria2.daemon.json"
+        state.write_text(
+            json.dumps({"pid": 9999, "rpc_url": "http://127.0.0.1:6800/jsonrpc", "secret": "s1"})
+        )
+
+        calls = {"n": 0}
+
+        def alive(self):
+            calls["n"] += 1
+            # configured secret fails; stored secret succeeds
+            return self._secret == "s1" or calls["n"] > 2
+
+        with (
+            patch.object(Aria2Client, "is_alive", alive),
+            patch("mosaic.aria2._pid_is_aria2", return_value=True),
+            patch("mosaic.aria2.find_binary", return_value="/usr/bin/aria2c"),
+            patch("subprocess.Popen") as popen,
+        ):
+            client = ensure_client(self._cfg(tmp_path), state_dir=tmp_path)
+        assert client is not None
+        assert client.managed is True
+        popen.assert_not_called()
+
+    def test_wedged_orphan_is_reaped(self, tmp_path):
+        """A recorded-but-unresponsive daemon gets killed so a fresh spawn works."""
+        state = tmp_path / "aria2.daemon.json"
+        state.write_text(
+            json.dumps({"pid": 8888, "rpc_url": "http://127.0.0.1:6800/jsonrpc", "secret": "s1"})
+        )
+        with (
+            patch.object(Aria2Client, "is_alive", return_value=False),
+            patch("mosaic.aria2._pid_is_aria2", return_value=True),
+            patch("mosaic.aria2._kill_pid") as kill,
+            patch("mosaic.aria2.find_binary", return_value=None),
+        ):
+            assert ensure_client(self._cfg(tmp_path), state_dir=tmp_path) is None
+        kill.assert_called_once_with(8888)
+        assert not state.exists()
+
+    def test_free_port_skips_occupied(self):
+        import socket
+
+        from mosaic.aria2 import _free_port
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+            s.listen(1)
+            chosen = _free_port(port, scan=4)
+        assert chosen == port + 1
+
 
 class TestAria2BackendInQueue:
     """End-to-end queue behaviour with a mocked aria2 client."""
@@ -175,15 +258,19 @@ class TestAria2BackendInQueue:
         cache = Cache(cfg["db_path"])
         m = DownloadManager(cache, cfg)
 
-        p = Paper(title="T1", year=2020, pdf_url="https://x.example/f.pdf", source="t")
-        ids = m.enqueue_papers([p])
-        job = cache.get_job(ids[0])
-        assert job["backend"] == "aria2"
-
+        # Inject the fake client before enqueueing so the lazy _ensure_aria2
+        # path never spawns a real daemon.
         fake_client = MagicMock()
         fake_client.is_alive.return_value = True
         fake_client.add_uri.return_value = "gid-1"
         fake_client.process = None
+        fake_client.managed = False
+        m._aria2 = fake_client
+
+        p = Paper(title="T1", year=2020, pdf_url="https://x.example/f.pdf", source="t")
+        ids = m.enqueue_papers([p])
+        job = cache.get_job(ids[0])
+        assert job["backend"] == "aria2"
 
         dest = Path(job["destination"])
         part = Path(str(dest) + ".part")
@@ -200,7 +287,6 @@ class TestAria2BackendInQueue:
                 return {"status": "complete"}
 
         fake_client.tell_status.side_effect = tell_status
-        m._aria2 = fake_client
         m.start()
         try:
             result = m.wait_all(ids, poll=0.05)
@@ -232,19 +318,21 @@ class TestAria2BackendInQueue:
         }
         cache = Cache(cfg["db_path"])
         m = DownloadManager(cache, cfg)
-        p = Paper(title="T2", year=2020, pdf_url="https://x.example/missing.pdf", source="t")
-        ids = m.enqueue_papers([p])
 
         fake_client = MagicMock()
         fake_client.is_alive.return_value = True
         fake_client.add_uri.return_value = "gid-err"
         fake_client.process = None
+        fake_client.managed = False
         fake_client.tell_status.return_value = {
             "status": "error",
             "errorCode": "3",
             "errorMessage": "resource not found (HTTP 404)",
         }
         m._aria2 = fake_client
+
+        p = Paper(title="T2", year=2020, pdf_url="https://x.example/missing.pdf", source="t")
+        ids = m.enqueue_papers([p])
         m.start()
         try:
             m.wait_all(ids, poll=0.05)
@@ -253,3 +341,43 @@ class TestAria2BackendInQueue:
         job = cache.get_job(ids[0])
         assert job["status"] == "FAILED"
         assert "not_found" in job["last_error"]
+
+    def test_lost_gid_requeues_job(self, tmp_path):
+        """tellStatus 'GID not found' (daemon restarted without the session)
+        must requeue the job instead of leaving it stuck DOWNLOADING."""
+        from mosaic.db import Cache
+        from mosaic.dlqueue import DownloadManager
+        from mosaic.models import Paper
+
+        cfg = {
+            "db_path": str(tmp_path / "c.db"),
+            "download_dir": str(tmp_path / "papers"),
+            "unpaywall": {"email": ""},
+            "download": {
+                "backend": "aria2",
+                "max_concurrent": 2,
+                "per_host_concurrent": 5,
+                "per_host_delay": 0,
+                "max_tries": 1,
+                "verify_pdf": False,
+                "skip_existing": False,
+                "aria2_rpc_url": "http://127.0.0.1:6800/jsonrpc",
+            },
+        }
+        cache = Cache(cfg["db_path"])
+        m = DownloadManager(cache, cfg)
+
+        fake_client = MagicMock()
+        fake_client.is_alive.return_value = True
+        fake_client.add_uri.return_value = "gid-lost"
+        fake_client.process = None
+        fake_client.managed = False
+        fake_client.tell_status.side_effect = Aria2Error("GID#gid-lost is not found (code 1)")
+        m._aria2 = fake_client
+
+        p = Paper(title="T3", year=2020, pdf_url="https://x.example/r.pdf", source="t")
+        ids = m.enqueue_papers([p])
+        m._poll_aria2_jobs()
+        job = cache.get_job(ids[0])
+        assert job["status"] == "QUEUED"
+        assert job["aria2_gid"] is None
