@@ -408,6 +408,48 @@ mosaic downloads clear --completed       # drop completed records
 
 ---
 
+### `collect`
+
+Run a JSON *collection plan* — a structured, resumable batch of themed
+search-and-download tasks. Each task carries multi-language keywords,
+pre-computed broad/focused queries and an output sub-directory; the runner
+generates tiered queries, searches the plan's sources, grades relevance
+(HIGH/MEDIUM/LOW/NEEDS_REVIEW), downloads legal open-access PDFs through the
+persistent queue, and archives them under `domain/topic/task/` folders as
+`{year}_{source}_{title}.pdf` — hardlinked from a canonical `_library/` so a
+paper shared by several tasks downloads once. All state lives in the cache
+DB (`collection_*` tables), so interrupted plans resume cleanly and reruns
+never duplicate files.
+
+```
+mosaic collect COMMAND [OPTIONS]
+```
+
+| Command | Key options | Description |
+|---------|-------------|-------------|
+| `validate` | | Validate plan JSON (schema, unique ids, safe paths) — no network |
+| `run` | `--task`, `--domain`, `--priority`, `--limit-tasks`, `--dry-run`, `--output-dir`, `--max-pdfs-per-task`, `--max-queries-per-task`, `--max-results-per-source`, `--max-disk-gb`, `--backend`, `--sources`, `--no-download` | Execute the plan (completed tasks are skipped — idempotent) |
+| `resume` | same selection options, `--all` | Continue an interrupted plan; tasks left mid-flight restart cleanly |
+| `retry` | `--task`, `--failed` | Re-run specific tasks or every non-completed task |
+| `status` | `--task` | Per-task status table (candidates/relevant/PDFs/reason) |
+| `report` | `--output-dir` | Regenerate `_manifest/` export (5 files) |
+
+**Examples:**
+
+```bash
+mosaic collect validate plans/my_plan.json
+mosaic collect run plans/my_plan.json --task T045 --dry-run   # plan preview, no network
+mosaic collect run plans/my_plan.json --output-dir ./library
+mosaic collect run plans/my_plan.json --task T045             # single task
+mosaic collect resume plans/my_plan.json                      # after a crash/close
+mosaic collect retry plans/my_plan.json --failed              # retry only failures
+mosaic collect status plans/my_plan.json
+```
+
+Plan JSON format: see `docs/schemas/collection-plan-v1.schema.json`.
+
+---
+
 ### `index`
 
 Build or update the local vector index for semantic search and RAG.

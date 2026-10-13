@@ -22,6 +22,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
@@ -180,7 +181,14 @@ class DownloadManager:
 
     # ── Enqueue ──────────────────────────────────────────────────────────────
 
-    def enqueue_papers(self, papers: list[Paper]) -> list[str]:
+    def enqueue_papers(
+        self,
+        papers: list[Paper],
+        *,
+        download_dir: str | None = None,
+        filename_pattern: str | None = None,
+        dest_fn: Callable[[Paper], Path] | None = None,
+    ) -> list[str]:
         """Create QUEUED jobs for *papers*; returns job_ids.
 
         Papers are persisted first so the queue survives restarts and alias
@@ -191,9 +199,21 @@ class DownloadManager:
         entirely (no job created) — matching the ``--download`` skip logic.
         A partial unique index on ``download_jobs(paper_uid)`` makes the
         one-active-job guarantee hold across processes, not just threads.
+
+        Args:
+            download_dir: Per-call override for the destination directory
+                (collection plans download into their own library without
+                mutating the shared config).
+            filename_pattern: Per-call override for the filename pattern.
+            dest_fn: Optional callable returning the exact destination
+                path per paper — takes precedence over
+                ``_destination_for`` so callers can apply their own naming
+                and collision policy.
         """
-        dl_dir = Path(self.cfg["download_dir"])
-        pattern = self.cfg.get("filename_pattern", "{year}_{source}_{author}_{title}")
+        dl_dir = Path(download_dir or self.cfg["download_dir"])
+        pattern = filename_pattern or self.cfg.get(
+            "filename_pattern", "{year}_{source}_{author}_{title}"
+        )
         skip_existing = self.dl_cfg.get("skip_existing", True)
         # Resolve the backend once per batch so job stamps match reality.
         if self.backend in ("aria2", "auto"):
@@ -221,7 +241,11 @@ class DownloadManager:
                 if rec and rec["status"] == "ok" and download_still_valid(rec):
                     continue
             job_id = uuid.uuid4().hex[:16]
-            dest = _destination_for(paper, dl_dir, pattern)
+            dest = (
+                Path(dest_fn(paper))
+                if dest_fn is not None
+                else (_destination_for(paper, dl_dir, pattern))
+            )
             if str(dest) in reserved_dests:
                 # Reserved by another *queued* job (nothing on disk yet, so
                 # dedupe_path can't see it) — generate a __N variant ourselves.

@@ -1,0 +1,40 @@
+<article id="plan-{{ plan.plan_id }}">
+  <header>
+    <strong>{{ plan.title or plan.plan_id }}</strong>
+    <p class="stats-line" style="margin:0">
+      {{ plan.tasks|length }} tasks ·
+      {% for k, v in plan.domains.items() %}{{ k }}={{ v }} {% endfor %}·
+      {% for k, v in plan.priorities.items()|sort %}{{ k }}={{ v }} {% endfor %}
+      {% if running %}<span aria-busy="true">running&hellip;</span>{% endif %}
+    </p>
+  </header>
+
+  <div class="action-bar">
+    <form method="post"
+          hx-post="{{ url_for('ui.collection_run', plan_id=plan.plan_id) }}"
+          hx-target="#plan-{{ plan.plan_id }}" hx-swap="outerHTML"
+          style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:0">
+      <input type="text" name="task_id" placeholder="task id (blank = all)"
+             style="max-width:11rem">
+      <input type="text" name="output_dir" placeholder="output dir (default: plan)"
+             style="max-width:14rem">
+      <input type="number" name="max_pdfs_per_task" placeholder="pdfs/task" min="0" max="20"
+             style="max-width:7rem">
+      <button type="submit" {% if running %}disabled{% endif %}>Start / Resume</button>
+      <button type="submit" name="retry_failed" value="1" {% if running %}disabled{% endif %}>Retry failed</button>
+    </form>
+    <form method="post"
+          hx-post="{{ url_for('ui.collection_stop', plan_id=plan.plan_id) }}"
+          hx-target="#plan-{{ plan.plan_id }}" hx-swap="outerHTML" style="margin:0">
+      <button type="submit" {% if not running %}disabled{% endif %}>Pause</button>
+    </form>
+  </div>
+
+  <div hx-get="{{ url_for('ui.collection_status', plan_id=plan.plan_id) }}"
+       hx-trigger="every 3s" hx-swap="outerHTML"></div>
+
+  <div hx-get="{{ url_for('ui.collection_table', plan_id=plan.plan_id) }}"
+       hx-trigger="every 5s" hx-swap="innerHTML">
+    {% include "partials/collection_tasks.html" %}
+  </div>
+</article>

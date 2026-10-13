@@ -1582,3 +1582,264 @@ def session_delete(name):
     else:
         flash(f"No session found for '{name}'.", "warning")
     return redirect(url_for("ui.sessions_page"))
+
+
+# ---------------------------------------------------------------------------
+# JSON collection plans
+# ---------------------------------------------------------------------------
+
+# Per-plan stop events — set by the Stop button, honoured between tasks.
+_collect_stops: dict = {}
+
+
+def _collect_store(plan_id: str):
+    from mosaic.collection.state import CollectionStore
+
+    return CollectionStore(_cache(), plan_id)
+
+
+def _plan_cards() -> list[dict]:
+    """All registered collection plans with task counts."""
+    cache = _cache()
+    try:
+        rows = cache.con.execute(
+            "SELECT * FROM collection_plans ORDER BY updated_at DESC"
+        ).fetchall()
+    except Exception:
+        return []
+    out = []
+    for r in rows:
+        rec = dict(r)
+        counts = cache.con.execute(
+            "SELECT status, COUNT(*) c FROM collection_tasks WHERE plan_id=? GROUP BY status",
+            (rec["plan_id"],),
+        ).fetchall()
+        rec["counts"] = {x["status"]: x["c"] for x in counts}
+        out.append(rec)
+    return out
+
+
+@bp.route("/collection")
+def collection_page():
+    return render_template("collection.html", plans=_plan_cards(), version=_version())
+
+
+def _validate_plan_file(plan_path: Path):
+    """Return (plan, error_html)."""
+    from mosaic.collection.loader import PlanError, load_plan
+
+    try:
+        return load_plan(plan_path), None
+    except PlanError as e:
+        items = "".join(f"<li>{escape(p)}</li>" for p in e.problems[:15])
+        return None, f"<mark>Invalid collection plan:</mark><ul>{items}</ul>"
+
+
+def _register_plan(plan) -> None:
+    """Persist plan + task rows so the UI can show/track state."""
+    from mosaic.collection.runner import CollectionRunner, options_from_plan
+
+    opts = options_from_plan(plan)
+    runner = CollectionRunner(plan, _cfg(), _cache(), opts)
+    runner.register()
+
+
+@bp.route("/collection/load", methods=["POST"])
+def collection_load():
+    """Load a plan from a server-side path or an uploaded JSON file."""
+    plan_file = request.files.get("plan_file")
+    plan_path_str = request.form.get("plan_path", "").strip()
+
+    if plan_file and plan_file.filename:
+        if not plan_file.filename.endswith(".json"):
+            return "<mark>Please upload a .json collection plan.</mark>"
+        data = plan_file.read(_MAX_UPLOAD_BYTES + 1)
+        if len(data) > _MAX_UPLOAD_BYTES:
+            return "<mark>Plan file exceeds 10 MB.</mark>"
+        plans_dir = Path(_cfg()["db_path"]).parent / "plans"
+        plans_dir.mkdir(parents=True, exist_ok=True)
+        dest = plans_dir / Path(plan_file.filename).name
+        dest.write_bytes(data)
+        plan_path = dest
+    elif plan_path_str:
+        plan_path = Path(plan_path_str).expanduser()
+    else:
+        return "<mark>Provide a plan path or upload a JSON file.</mark>"
+
+    plan, err = _validate_plan_file(plan_path)
+    if err:
+        return err
+    _register_plan(plan)
+    return render_template(
+        "partials/collection_plan.html",
+        plan=plan,
+        opts=_collect_opts(plan.plan_id),
+        running=False,
+        tasks=_collect_store(plan.plan_id).list_tasks(),
+        version=_version(),
+    )
+
+
+def _collect_opts(plan_id: str) -> dict:
+    return current_app.config.get(f"collection_opts_{plan_id}", {})
+
+
+def _run_collection_ui(plan_path, task_ids, opts_over, stop_event, cfg, db_path, progress):
+    """Worker: run (a subset of) a collection plan in this thread."""
+    from mosaic.collection.loader import load_plan
+    from mosaic.collection.reporting import export_manifest
+    from mosaic.collection.runner import CollectionRunner, options_from_plan
+    from mosaic.db import Cache
+
+    plan = load_plan(plan_path)
+    cache = Cache(db_path)
+    cfg = dict(cfg)
+    cfg["download"] = dict(
+        cfg.get("download", {}),
+        backend=opts_over.get("backend") or cfg.get("download", {}).get("backend", "auto"),
+    )
+    opts = options_from_plan(plan, opts_over)
+    runner = CollectionRunner(plan, cfg, cache, opts)
+    runner.stop_event = stop_event
+    tasks = plan.select(task_ids=set(task_ids) if task_ids else None)
+
+    def _cb(task, status, skipped=False):
+        progress[task.task_id] = status
+
+    results = runner.run(tasks, retry_failed=opts_over.get("retry_failed", False), progress_cb=_cb)
+    report = export_manifest(runner.store, runner.root)
+    return {"results": results, "report": report}
+
+
+@bp.route("/collection/<plan_id>/run", methods=["POST"])
+def collection_run(plan_id):
+    """Start/resume a plan as a background job (single task or all)."""
+    _purge_stale()
+    store = _collect_store(plan_id)
+    rec = store.get_plan()
+    if not rec or not rec.get("path"):
+        return "<mark>Plan not registered — load the JSON first.</mark>"
+
+    task_id = request.form.get("task_id", "").strip() or None
+    retry_failed = request.form.get("retry_failed") == "1"
+    output_dir = request.form.get("output_dir", "").strip()
+    max_pdfs = _safe_int(request.form.get("max_pdfs_per_task", 0), default=0, lo=0, hi=20)
+
+    opts_over = {
+        "output_dir": output_dir or None,
+        "max_pdfs_per_task": max_pdfs or None,
+        "retry_failed": retry_failed,
+    }
+    current_app.config[f"collection_opts_{plan_id}"] = opts_over
+
+    progress: dict = {}
+    import threading
+
+    stop_event = threading.Event()
+    _collect_stops[plan_id] = stop_event
+    cfg = _cfg()
+    job_id = _jobs().submit(
+        _run_collection_ui,
+        rec["path"],
+        [task_id] if task_id else [],
+        opts_over,
+        stop_event,
+        cfg,
+        cfg["db_path"],
+        progress,
+    )
+    job = _jobs().get(job_id)
+    if job is not None:
+        job.progress = progress
+    current_app.config[f"collection_job_{plan_id}"] = job_id
+    return _collection_plan_partial(plan_id)
+
+
+@bp.route("/collection/<plan_id>/stop", methods=["POST"])
+def collection_stop(plan_id):
+    """Pause the running plan at the next task boundary."""
+    ev = _collect_stops.get(plan_id)
+    if ev:
+        ev.set()
+    return _collection_plan_partial(plan_id)
+
+
+def _plan_and_rec(plan_id):
+    """(plan_obj, db_rec) for a registered plan."""
+    store = _collect_store(plan_id)
+    rec = store.get_plan()
+    if not rec or not rec.get("path"):
+        return None, rec
+    plan, _err = _validate_plan_file(Path(rec["path"]))
+    return plan, rec
+
+
+def _collection_plan_partial(plan_id):
+    plan, _rec = _plan_and_rec(plan_id)
+    if plan is None:
+        return "<mark>Plan file missing — reload it.</mark>"
+    job_id = current_app.config.get(f"collection_job_{plan_id}")
+    job = _jobs().get(job_id) if job_id else None
+    running = bool(job and job.status == "running")
+    return render_template(
+        "partials/collection_plan.html",
+        plan=plan,
+        opts=_collect_opts(plan_id),
+        running=running,
+        job_id=job_id if running else None,
+        tasks=_collect_store(plan_id).list_tasks(),
+        version=_version(),
+    )
+
+
+@bp.route("/collection/<plan_id>/table")
+def collection_table(plan_id):
+    """HTMX-polling task table — reads live statuses from collection_tasks."""
+    return render_template(
+        "partials/collection_tasks.html",
+        plan_id=plan_id,
+        tasks=_collect_store(plan_id).list_tasks(),
+    )
+
+
+@bp.route("/collection/<plan_id>/status")
+def collection_status(plan_id):
+    """HTMX status line for a running collection job."""
+    job_id = current_app.config.get(f"collection_job_{plan_id}")
+    job = _jobs().get(job_id) if job_id else None
+    if job is None:
+        return ""
+    if job.status == "running":
+        return (
+            f'<div hx-get="{url_for("ui.collection_status", plan_id=plan_id)}" '
+            f'hx-trigger="every 3s" hx-swap="outerHTML">'
+            f'<span aria-busy="true">Collection running — '
+            f"{len(job.progress or {})} task(s) finished.</span></div>"
+        )
+    if job.status == "error":
+        _jobs().pop(job_id)
+        return f"<mark>Collection job failed: {escape(job.error_message)}</mark>"
+    _jobs().pop(job_id)
+    return "<p class='stats-line'>Collection finished — table refreshed below.</p>"
+
+
+@bp.route("/collection/<plan_id>/task/<task_id>")
+def collection_task_detail(plan_id, task_id):
+    """Per-task detail: matched papers, grades, local file paths."""
+    store = _collect_store(plan_id)
+    rows = store.matches_for_task(task_id, grades=("HIGH", "MEDIUM", "LOW", "NEEDS_REVIEW"))
+    cache = _cache()
+    links = {lk["paper_uid"]: lk["link_path"] for lk in store.links_for_task(task_id)}
+    papers = []
+    for m in rows:
+        p = cache.get_by_uid(m["paper_uid"])
+        if p:
+            papers.append({"paper": p, "match": m, "link": links.get(m["paper_uid"], "")})
+    task = next((t for t in store.list_tasks() if t["task_id"] == task_id), None)
+    return render_template(
+        "partials/collection_task.html",
+        plan_id=plan_id,
+        task=task,
+        papers=papers,
+        version=_version(),
+    )

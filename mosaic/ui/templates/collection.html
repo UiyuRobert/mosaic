@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Collection Plans — MOSAIC{% endblock %}
+{% block content %}
+<h2>JSON Collection Plans</h2>
+<p class="stats-line">
+  Structured multi-task harvesting: each plan JSON drives tiered searches,
+  relevance grading, legal open-access downloads into a canonical
+  <code>_library</code>, and domain/topic/task folders with
+  <code>{year}_{source}_{title}.pdf</code> filenames.
+</p>
+
+<details open>
+  <summary><strong>Load a collection plan</strong></summary>
+  <form method="post"
+        action="{{ url_for('ui.collection_load') }}"
+        enctype="multipart/form-data"
+        hx-post="{{ url_for('ui.collection_load') }}"
+        hx-target="#collection-plans"
+        hx-swap="afterbegin">
+    <div class="grid">
+      <label>Plan JSON path (server-local)
+        <input type="text" name="plan_path" placeholder="/path/to/plan.json">
+      </label>
+      <label>… or upload
+        <input type="file" name="plan_file" accept=".json">
+      </label>
+    </div>
+    <button type="submit">Validate &amp; Load</button>
+  </form>
+</details>
+
+<div id="collection-plans">
+{% for rec in plans %}
+  <article>
+    <header><strong>{{ rec.title or rec.plan_id }}</strong></header>
+    <p class="stats-line">
+      plan_id <code>{{ rec.plan_id }}</code> · {{ rec.task_count }} tasks ·
+      {% for k, v in rec.counts.items() %}{{ k }}={{ v }} {% endfor %}
+      <br>path: <code>{{ rec.path }}</code>
+    </p>
+    <div hx-get="{{ url_for('ui.collection_table', plan_id=rec.plan_id) }}"
+         hx-trigger="load" hx-swap="innerHTML">
+      <p aria-busy="true">Loading tasks&hellip;</p>
+    </div>
+  </article>
+{% endfor %}
+</div>
+{% endblock %}

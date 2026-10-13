@@ -83,6 +83,18 @@ The download queue page. All PDF downloads go through a persistent, SQLite-backe
 - **Backend badge** &mdash; shows whether jobs run on `native` or `aria2`
 - **Restart recovery** &mdash; jobs interrupted mid-download are re-queued automatically on the next start
 
+### Collection Plans
+
+Structured JSON collection plans (`mosaic collect`) can be driven from the browser:
+
+- **Load** &mdash; paste a server-side plan path or upload a `.json` plan file; the plan is validated and its task list is registered in the local DB
+- **Start / Resume / Retry failed** &mdash; run the whole plan, a single `task_id`, or only failed tasks as a background job
+- **Pause** &mdash; stops the plan at the next task boundary (in-flight downloads keep their queue semantics)
+- **Live table** &mdash; per-task status, candidate/relevant/PDF counts and failure reasons, auto-refreshing
+- **Task detail** &mdash; matched papers with relevance grades and the local file paths created for the task
+
+Plan output follows the `domain/topic/task/` layout with `{year}_{source}_{title}.pdf` files hardlinked from a canonical `_library/`, plus a `_manifest/` export. The existing Search/Bulk/Downloads/History pages are unaffected.
+
 ### History
 
 All past searches are saved to the local SQLite cache. The history page lists them with result counts, timestamps, and a **Re-run** button to repeat any previous search.

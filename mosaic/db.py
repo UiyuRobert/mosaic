@@ -37,7 +37,7 @@ def _load_sqlite_vec(con: sqlite3.Connection) -> bool:
         return False
 
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 
 # Versioned migrations. Index `n` holds statements upgrading schema v(n+1)
 # to v(n+2). Every statement must be idempotent-safe (we tolerate
@@ -94,6 +94,105 @@ _MIGRATIONS: list[list[str]] = [
         """CREATE UNIQUE INDEX IF NOT EXISTS idx_dj_active_uid
            ON download_jobs(paper_uid)
            WHERE status IN ('QUEUED','DOWNLOADING','VERIFYING','RETRY_WAIT','PAUSED')""",
+    ],
+    # v3 → v4: JSON collection plans — task state, queries, matches, files
+    [
+        """CREATE TABLE IF NOT EXISTS collection_plans (
+            plan_id      TEXT PRIMARY KEY,
+            title        TEXT,
+            path         TEXT,
+            sha256       TEXT,
+            task_count   INTEGER DEFAULT 0,
+            created_at   TEXT DEFAULT (datetime('now')),
+            updated_at   TEXT DEFAULT (datetime('now'))
+        )""",
+        """CREATE TABLE IF NOT EXISTS collection_tasks (
+            plan_id      TEXT NOT NULL,
+            task_id      TEXT NOT NULL,
+            excel_row    INTEGER,
+            domain       TEXT,
+            topic        TEXT,
+            priority     TEXT,
+            zh_primary   TEXT,
+            en_primary   TEXT,
+            output_subdir TEXT,
+            status       TEXT NOT NULL DEFAULT 'PENDING',
+            queries_run  INTEGER DEFAULT 0,
+            candidates   INTEGER DEFAULT 0,
+            relevant     INTEGER DEFAULT 0,
+            pdf_count    INTEGER DEFAULT 0,
+            target_pdfs  INTEGER DEFAULT 3,
+            reason       TEXT,
+            detail       TEXT,
+            task_json    TEXT,
+            updated_at   TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (plan_id, task_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS collection_queries (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id      TEXT NOT NULL,
+            task_id      TEXT NOT NULL,
+            tier         TEXT,
+            query        TEXT,
+            source       TEXT,
+            status       TEXT,
+            n_results    INTEGER DEFAULT 0,
+            error        TEXT,
+            ran_at       TEXT DEFAULT (datetime('now'))
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_cq_task ON collection_queries(plan_id, task_id)",
+        """CREATE TABLE IF NOT EXISTS collection_matches (
+            plan_id      TEXT NOT NULL,
+            task_id      TEXT NOT NULL,
+            paper_uid    TEXT NOT NULL,
+            grade        TEXT,
+            score        REAL,
+            why          TEXT,
+            downloaded   INTEGER DEFAULT 0,
+            PRIMARY KEY (plan_id, task_id, paper_uid)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_cm_paper ON collection_matches(paper_uid)",
+        """CREATE TABLE IF NOT EXISTS collection_files (
+            paper_uid      TEXT PRIMARY KEY,
+            canonical_path TEXT,
+            filename       TEXT,
+            sha256         TEXT,
+            size_bytes     INTEGER,
+            status         TEXT,
+            error          TEXT,
+            identity       TEXT,
+            downloaded_at  TEXT DEFAULT (datetime('now'))
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_cf_filename ON collection_files(filename)",
+        """CREATE TABLE IF NOT EXISTS collection_links (
+            plan_id      TEXT NOT NULL,
+            task_id      TEXT NOT NULL,
+            paper_uid    TEXT NOT NULL,
+            link_path    TEXT,
+            PRIMARY KEY (plan_id, task_id, paper_uid)
+        )""",
+        """CREATE TABLE IF NOT EXISTS collection_downloads (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id      TEXT NOT NULL,
+            task_id      TEXT NOT NULL,
+            paper_uid    TEXT NOT NULL,
+            backend      TEXT,
+            url          TEXT,
+            result       TEXT,
+            reason       TEXT,
+            path         TEXT,
+            sha256       TEXT,
+            ran_at       TEXT DEFAULT (datetime('now'))
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_cd_task ON collection_downloads(plan_id, task_id)",
+        """CREATE TABLE IF NOT EXISTS collection_source_health (
+            plan_id        TEXT NOT NULL,
+            source         TEXT NOT NULL,
+            consec_errors  INTEGER DEFAULT 0,
+            cooldown_until REAL DEFAULT 0,
+            last_error     TEXT,
+            PRIMARY KEY (plan_id, source)
+        )""",
     ],
 ]
 

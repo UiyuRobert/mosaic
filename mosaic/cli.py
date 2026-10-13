@@ -21,7 +21,7 @@ from mosaic.errors import set_verbose_logging
 from mosaic.parsing import strip_html
 from mosaic.search import search_all
 from mosaic.services import build_filters, filter_papers, sort_by_relevance
-from mosaic.source_registry import SRC_MAP, build_sources
+from mosaic.source_registry import SHORTHAND_TO_CFG_KEY, SRC_MAP, build_sources
 
 
 def _version_callback(value: bool) -> None:
@@ -42,11 +42,15 @@ downloads_app = typer.Typer(
     help="Manage the persistent download queue (list/pause/resume/retry/cancel)."
 )
 skill_app = typer.Typer(help="Manage the bundled MOSAIC Claude Code skill.")
+collect_app = typer.Typer(
+    help="Run JSON collection plans: batched multi-task search + organised downloads."
+)
 app.add_typer(notebook_app, name="notebook")
 app.add_typer(auth_app, name="auth")
 app.add_typer(cache_app, name="cache")
 app.add_typer(downloads_app, name="downloads")
 app.add_typer(skill_app, name="skill")
+app.add_typer(collect_app, name="collect")
 
 
 _verbose: bool = False
@@ -3197,6 +3201,408 @@ def downloads_clear(
         raise typer.Exit(1)
     n = manager.clear(statuses)
     rprint(f"[green]{n} job record(s) cleared (PDFs untouched).[/green]")
+
+
+# ---------------------------------------------------------------------------
+# collect — JSON collection plans
+# ---------------------------------------------------------------------------
+
+
+def _load_plan_or_exit(plan_path: Path):
+    from mosaic.collection.loader import PlanError, load_plan
+
+    try:
+        return load_plan(plan_path)
+    except PlanError as e:
+        rprint(f"[red]Invalid collection plan:[/red] {plan_path}")
+        for p in e.problems[:20]:
+            rprint(f"  [red]•[/red] {p}")
+        if len(e.problems) > 20:
+            rprint(f"  [dim]… and {len(e.problems) - 20} more problem(s)[/dim]")
+        raise typer.Exit(2) from e
+
+
+def _collect_options(
+    output_dir: str,
+    sources: str,
+    max_pdfs_per_task: int,
+    max_queries_per_task: int,
+    max_results_per_source: int,
+    max_dl_candidates: int,
+    max_disk_gb: float,
+    backend: str,
+    no_download: bool,
+):
+    """Assemble the CLI-overrides dict for ``options_from_plan``."""
+    from mosaic.collection.runner import DEFAULT_SOURCES
+
+    overrides: dict = {
+        "output_dir": output_dir or None,
+        "max_pdfs_per_task": max_pdfs_per_task or None,
+        "max_queries_per_task": max_queries_per_task or None,
+        "max_results_per_source": max_results_per_source or None,
+        "max_dl_candidates": max_dl_candidates or None,
+        "max_disk_gb": max_disk_gb or None,
+        "backend": backend or None,
+        "download_enabled": (not no_download) or None,
+    }
+    if sources:
+        wanted = []
+        for s in sources.split(","):
+            s = s.strip()
+            if s:
+                wanted.append(SHORTHAND_TO_CFG_KEY.get(s, s))
+        overrides["sources"] = wanted or list(DEFAULT_SOURCES)
+    return overrides
+
+
+def _select_or_exit(plan, task, domain, priority, limit_tasks):
+    task_ids = set(task) if task else None
+    if task_ids:
+        known = {t.task_id for t in plan.tasks}
+        unknown = task_ids - known
+        if unknown:
+            rprint(f"[red]Unknown task id(s) in plan:[/red] {', '.join(sorted(unknown))}")
+            raise typer.Exit(2)
+    tasks = plan.select(task_ids=task_ids, domain=domain, priority=priority, limit=limit_tasks)
+    if not tasks:
+        rprint("[red]No tasks matched the given filters.[/red]")
+        raise typer.Exit(2)
+    return tasks
+
+
+def _run_collection(
+    plan,
+    tasks,
+    opts,
+    *,
+    retry_failed: bool = False,
+) -> dict[str, str]:
+    """Shared run path for collect run/resume/retry."""
+    from mosaic.collection.runner import CollectionRunner
+
+    cfg = cfg_mod.load()
+    cfg["download"]["backend"] = opts.backend
+    cache = Cache(cfg["db_path"])
+    runner = CollectionRunner(plan, cfg, cache, opts)
+    if opts.dry_run:
+        from mosaic.collection.planner import planned_queries
+
+        console.print(f"[bold]Dry run[/bold] — plan {plan.plan_id}, {len(tasks)} task(s)")
+        for t in tasks:
+            console.print(f"\n[cyan]{t.task_id}[/cyan] [{t.priority}/{t.domain}] {t.en.primary}")
+            for pq in planned_queries(t, opts.max_queries_per_task):
+                console.print(f"    [dim]{pq.tier:9s}[/dim] {pq.query}")
+            console.print(f"    [dim]→ {runner.root / t.output_subdir}[/dim]")
+        return {t.task_id: "DRY_RUN" for t in tasks}
+
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    )
+
+    def _cb(task, status, skipped=False):
+        tag = "skip" if skipped else status
+        console.print(
+            f"  [{_status_color(status)}]{task.task_id}[/{_status_color(status)}] "
+            f"[dim]{tag:<14}[/dim] {task.en.primary[:52]}"
+        )
+
+    results: dict[str, str] = {}
+    try:
+        with progress:
+            progress.add_task("collecting…", total=None)
+            results = runner.run(tasks, retry_failed=retry_failed, progress_cb=_cb)
+    finally:
+        from mosaic.collection.reporting import export_manifest
+
+        report = export_manifest(runner.store, runner.root)
+        console.print(
+            f"\n[bold]{report['tasks_completed']}[/bold] completed · "
+            f"[yellow]{report['tasks_partial']}[/yellow] partial · "
+            f"[red]{report['tasks_failed']}[/red] failed/other · "
+            f"[dim]{report['unique_pdfs']} unique PDFs → {runner.root}[/dim]"
+        )
+        console.print(f"[dim]manifest → {runner.mandir}[/dim]")
+    return results
+
+
+def _status_color(status: str) -> str:
+    return {
+        "COMPLETED": "green",
+        "PARTIAL": "yellow",
+        "METADATA_ONLY": "yellow",
+        "DRY_RUN": "cyan",
+        "NEEDS_REVIEW": "dark_orange",
+    }.get(status, "red")
+
+
+@collect_app.command("validate")
+def collect_validate(
+    plan_path: Annotated[Path, typer.Argument(help="Path to the collection plan JSON")],
+) -> None:
+    """Validate a collection plan without touching the network or the cache."""
+    plan = _load_plan_or_exit(plan_path)
+    table = Table(show_header=False, box=box.SIMPLE, show_edge=False)
+    table.add_column("Field", style="dim", min_width=16)
+    table.add_column("Value")
+    table.add_row("plan_id", plan.plan_id)
+    table.add_row("title", plan.title or "–")
+    table.add_row("schema", plan.schema_version)
+    table.add_row("tasks", str(len(plan.tasks)))
+    table.add_row("domains", ", ".join(f"{k}={v}" for k, v in plan.domains.items()))
+    table.add_row("priorities", ", ".join(f"{k}={v}" for k, v in sorted(plan.priorities.items())))
+    table.add_row("sha256", plan.sha256[:16] + "…")
+    console.print(table)
+    rprint("[green]Plan is valid.[/green]")
+
+
+@collect_app.command("run")
+def collect_run(
+    plan_path: Annotated[Path, typer.Argument(help="Path to the collection plan JSON")],
+    task: Annotated[
+        list[str], typer.Option("--task", help="Run only these task ids (repeatable)")
+    ] = [],
+    domain: Annotated[str, typer.Option("--domain", help="Run only this domain")] = "",
+    priority: Annotated[str, typer.Option("--priority", help="Run only this priority")] = "",
+    limit_tasks: Annotated[
+        int, typer.Option("--limit-tasks", help="Cap the number of tasks executed")
+    ] = 0,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show planned queries; no network, no writes")
+    ] = False,
+    output_dir: Annotated[
+        str, typer.Option("--output-dir", help="Collection output root (overrides plan)")
+    ] = "",
+    max_pdfs_per_task: Annotated[
+        int, typer.Option("--max-pdfs-per-task", help="Verified PDFs targeted per task")
+    ] = 0,
+    max_queries_per_task: Annotated[
+        int, typer.Option("--max-queries-per-task", help="Search queries per task")
+    ] = 0,
+    max_results_per_source: Annotated[
+        int, typer.Option("--max-results-per-source", help="Results per source per query")
+    ] = 0,
+    max_dl_candidates: Annotated[
+        int, typer.Option("--max-dl-candidates", help="Max papers attempted per task")
+    ] = 0,
+    max_disk_gb: Annotated[
+        float, typer.Option("--max-disk-gb", help="Disk budget for the canonical library")
+    ] = 0.0,
+    backend: Annotated[
+        str, typer.Option("--backend", help="Download backend: auto|native|aria2")
+    ] = "",
+    sources: Annotated[
+        str, typer.Option("--sources", help="Comma list of source keys/shorthands")
+    ] = "",
+    no_download: Annotated[
+        bool, typer.Option("--no-download", help="Search + grade only, no PDF downloads")
+    ] = False,
+) -> None:
+    """Execute a collection plan (idempotent — completed tasks are skipped).
+
+    Searches the plan's sources per task, grades relevance, downloads legal
+    open-access PDFs into a canonical library, and links them into each
+    task's ``domain/topic/task`` directory with ``{year}_{source}_{title}.pdf``
+    filenames. Re-running only picks up unfinished tasks; verified files
+    are never re-downloaded.
+    """
+    plan = _load_plan_or_exit(plan_path)
+    tasks = _select_or_exit(plan, task, domain, priority, limit_tasks)
+    from mosaic.collection.runner import options_from_plan
+
+    opts = options_from_plan(
+        plan,
+        _collect_options(
+            output_dir,
+            sources,
+            max_pdfs_per_task,
+            max_queries_per_task,
+            max_results_per_source,
+            max_dl_candidates,
+            max_disk_gb,
+            backend,
+            no_download,
+        ),
+    )
+    opts.dry_run = dry_run
+    _run_collection(plan, tasks, opts)
+
+
+@collect_app.command("resume")
+def collect_resume(
+    plan_path: Annotated[Path, typer.Argument(help="Path to the collection plan JSON")],
+    task: Annotated[
+        list[str], typer.Option("--task", help="Resume only these task ids (repeatable)")
+    ] = [],
+    domain: Annotated[str, typer.Option("--domain", help="Resume only this domain")] = "",
+    priority: Annotated[str, typer.Option("--priority", help="Resume only this priority")] = "",
+    limit_tasks: Annotated[int, typer.Option("--limit-tasks")] = 0,
+    output_dir: Annotated[str, typer.Option("--output-dir")] = "",
+    max_pdfs_per_task: Annotated[int, typer.Option("--max-pdfs-per-task")] = 0,
+    max_queries_per_task: Annotated[int, typer.Option("--max-queries-per-task")] = 0,
+    max_results_per_source: Annotated[int, typer.Option("--max-results-per-source")] = 0,
+    max_disk_gb: Annotated[float, typer.Option("--max-disk-gb")] = 0.0,
+    backend: Annotated[str, typer.Option("--backend")] = "",
+    sources: Annotated[str, typer.Option("--sources")] = "",
+    no_download: Annotated[bool, typer.Option("--no-download")] = False,
+    include_completed: Annotated[
+        bool, typer.Option("--all", help="Re-run COMPLETED tasks too")
+    ] = False,
+) -> None:
+    """Resume an interrupted plan — finished tasks keep their results.
+
+    Tasks left SEARCHING/DOWNLOADING by a crash restart cleanly; tasks
+    with recorded matches reuse them instead of re-searching, and any
+    already-verified canonical PDF is re-linked without network access —
+    even after ``--output-dir`` changes.
+    """
+    plan = _load_plan_or_exit(plan_path)
+    tasks = _select_or_exit(plan, task, domain, priority, limit_tasks)
+    from mosaic.collection.runner import options_from_plan
+
+    opts = options_from_plan(
+        plan,
+        _collect_options(
+            output_dir,
+            sources,
+            max_pdfs_per_task,
+            max_queries_per_task,
+            max_results_per_source,
+            0,
+            max_disk_gb,
+            backend,
+            no_download,
+        ),
+    )
+    opts.include_completed = include_completed
+    _run_collection(plan, tasks, opts)
+
+
+@collect_app.command("retry")
+def collect_retry(
+    plan_path: Annotated[Path, typer.Argument(help="Path to the collection plan JSON")],
+    task: Annotated[
+        list[str], typer.Option("--task", help="Retry only these task ids (repeatable)")
+    ] = [],
+    failed: Annotated[
+        bool, typer.Option("--failed", help="Retry every non-completed task")
+    ] = False,
+    output_dir: Annotated[str, typer.Option("--output-dir")] = "",
+    max_pdfs_per_task: Annotated[int, typer.Option("--max-pdfs-per-task")] = 0,
+    max_queries_per_task: Annotated[int, typer.Option("--max-queries-per-task")] = 0,
+    max_results_per_source: Annotated[int, typer.Option("--max-results-per-source")] = 0,
+    max_disk_gb: Annotated[float, typer.Option("--max-disk-gb")] = 0.0,
+    backend: Annotated[str, typer.Option("--backend")] = "",
+    sources: Annotated[str, typer.Option("--sources")] = "",
+    no_download: Annotated[bool, typer.Option("--no-download")] = False,
+) -> None:
+    """Retry failed tasks (or specific ``--task`` ids).
+
+    Without flags, retries tasks selected via ``--task``. With
+    ``--failed``, every task that did not reach COMPLETED is reset to
+    PENDING and re-run; recorded matches and verified PDFs are kept, so
+    only genuinely missing work is attempted again.
+    """
+    plan = _load_plan_or_exit(plan_path)
+    if failed and task:
+        rprint("[red]Use either --failed or --task, not both.[/red]")
+        raise typer.Exit(2)
+    if not failed and not task:
+        rprint("[red]Provide --task <id> or --failed.[/red]")
+        raise typer.Exit(2)
+    tasks = _select_or_exit(plan, task, "", "", 0) if task else plan.tasks
+    from mosaic.collection.runner import options_from_plan
+
+    opts = options_from_plan(
+        plan,
+        _collect_options(
+            output_dir,
+            sources,
+            max_pdfs_per_task,
+            max_queries_per_task,
+            max_results_per_source,
+            0,
+            max_disk_gb,
+            backend,
+            no_download,
+        ),
+    )
+    _run_collection(plan, tasks, opts, retry_failed=True)
+
+
+@collect_app.command("status")
+def collect_status(
+    plan_path: Annotated[Path, typer.Argument(help="Path to the collection plan JSON")],
+    task: Annotated[
+        list[str], typer.Option("--task", help="Show only these task ids (repeatable)")
+    ] = [],
+) -> None:
+    """Show per-task status, counters and PDF links for a plan."""
+    plan = _load_plan_or_exit(plan_path)
+    cfg = cfg_mod.load()
+    cache = Cache(cfg["db_path"])
+    from mosaic.collection.state import CollectionStore
+
+    store = CollectionStore(cache, plan.plan_id)
+    rows = {t["task_id"]: t for t in store.list_tasks()}
+    if task:
+        rows = {k: v for k, v in rows.items() if k in set(task)}
+    if not rows:
+        rprint("[dim]No recorded runs for this plan yet — run it first.[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="cyan", box=box.SIMPLE, show_edge=False)
+    table.add_column("Task", width=7)
+    table.add_column("Status", width=14)
+    table.add_column("Reason", width=20)
+    table.add_column("Cand", justify="right", width=5)
+    table.add_column("Rel", justify="right", width=4)
+    table.add_column("PDF", justify="right", width=7)
+    table.add_column("EN term")
+    for t in sorted(rows.values(), key=lambda x: x["task_id"]):
+        status = t["status"]
+        color = _status_color(status)
+        table.add_row(
+            t["task_id"],
+            f"[{color}]{status}[/{color}]",
+            (t["reason"] or "")[:20],
+            str(t["candidates"]),
+            str(t["relevant"]),
+            f"{t['pdf_count']}/{t['target_pdfs']}",
+            (t["en_primary"] or "")[:50],
+        )
+    console.print(table)
+    counts: dict[str, int] = {}
+    for t in rows.values():
+        counts[t["status"]] = counts.get(t["status"], 0) + 1
+    console.print("[dim]" + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) + "[/dim]")
+
+
+@collect_app.command("report")
+def collect_report(
+    plan_path: Annotated[Path, typer.Argument(help="Path to the collection plan JSON")],
+    output_dir: Annotated[
+        str, typer.Option("--output-dir", help="Collection output root (overrides plan)")
+    ] = "",
+) -> None:
+    """(Re)generate the ``_manifest/`` export for a plan."""
+    plan = _load_plan_or_exit(plan_path)
+    cfg = cfg_mod.load()
+    cache = Cache(cfg["db_path"])
+    from mosaic.collection.reporting import export_manifest
+    from mosaic.collection.runner import options_from_plan
+    from mosaic.collection.state import CollectionStore
+
+    opts = options_from_plan(plan, {"output_dir": output_dir or None})
+    store = CollectionStore(cache, plan.plan_id)
+    report = export_manifest(store, Path(opts.output_dir).expanduser().resolve())
+    rprint(f"[green]manifest written →[/green] {Path(opts.output_dir) / '_manifest'}")
+    import json as _json
+
+    console.print_json(_json.dumps(report))
 
 
 if __name__ == "__main__":

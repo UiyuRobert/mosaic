@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/UiyuRobert/mosaic/blob/feat/ntrs-aria2/docs/schemas/collection-plan-v1.schema.json",
+  "title": "MOSAIC Collection Plan v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "plan_id",
+    "source",
+    "defaults",
+    "tasks"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "kind": {
+      "const": "mosaic.collection_plan"
+    },
+    "plan_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object"
+    },
+    "defaults": {
+      "type": "object"
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    }
+  },
+  "$defs": {
+    "wordgroup": {
+      "type": "object",
+      "required": [
+        "primary",
+        "aliases"
+      ],
+      "properties": {
+        "primary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": [
+        "task_id",
+        "excel_row",
+        "domain",
+        "topic",
+        "priority",
+        "keywords",
+        "collection_focus",
+        "search_queries",
+        "output_subdir"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^T[0-9]{3}$"
+        },
+        "excel_row": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "topic": {
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "P0",
+            "P1",
+            "P2"
+          ]
+        },
+        "keywords": {
+          "type": "object",
+          "required": [
+            "zh",
+            "en"
+          ],
+          "properties": {
+            "zh": {
+              "$ref": "#/$defs/wordgroup"
+            },
+            "en": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/wordgroup"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "abbreviation": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "related_terms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "collection_focus": {
+          "type": "string"
+        },
+        "retrieval_boundary": {
+          "type": "string"
+        },
+        "search_queries": {
+          "type": "object",
+          "required": [
+            "en_broad",
+            "en_focused",
+            "zh_broad",
+            "zh_focused",
+            "ntrs_focused"
+          ],
+          "properties": {
+            "en_broad": {
+              "type": "string"
+            },
+            "en_focused": {
+              "type": "string"
+            },
+            "zh_broad": {
+              "type": "string"
+            },
+            "zh_focused": {
+              "type": "string"
+            },
+            "ntrs_focused": {
+              "type": "string"
+            }
+          }
+        },
+        "output_subdir": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,2609 @@
+{
+  "schema_version": "1.0",
+  "kind": "mosaic.collection_plan",
+  "plan_id": "aero_design_excel_rows_066_136",
+  "title": "航发设计论文起步采集清单：Excel 第66–136行",
+  "source": {
+    "workbook": "航发设计_论文采集中英关键词与检索图谱(2).xlsx",
+    "sha256": "6beea3d5a73405a7e1e829bf57d725f2e69a30c0eaa6ceec802133f685f965eb",
+    "selection": {
+      "sheet": "起步采集清单",
+      "start_excel_row": 66,
+      "end_excel_row": 136,
+      "inclusive": true
+    },
+    "term_mapping": {
+      "sheet": "术语词表",
+      "match": "zh_primary + en_primary"
+    },
+    "search_queries_sheet": "检索任务"
+  },
+  "summary": {
+    "task_count": 71,
+    "domains": {
+      "风扇与压气机": 21,
+      "燃烧室与加力燃烧室": 24,
+      "涡轮": 26
+    },
+    "priorities": {
+      "P0": 56,
+      "P1": 15
+    }
+  },
+  "defaults": {
+    "search": {
+      "sources": [
+        "openalex",
+        "ntrs",
+        "crossref",
+        "hal",
+        "zenodo",
+        "arxiv"
+      ],
+      "query_mode": "source_adapted",
+      "max_queries_per_task": 5,
+      "max_results_per_source": 10,
+      "prefer_focused": true
+    },
+    "download": {
+      "enabled": true,
+      "only_legal_open_access": true,
+      "backend": "auto",
+      "max_pdfs_per_task": 3,
+      "max_concurrent": 3,
+      "per_host_concurrent": 1,
+      "retry_limit": 3
+    },
+    "storage": {
+      "root_dir": "./collected-papers",
+      "directory_layout": "domain/topic/task",
+      "filename_mode": "original_paper_title",
+      "filename_template": "{title}.pdf",
+      "collision_policy": "stable_identifier_suffix",
+      "dedupe_by_identifier_and_hash": true,
+      "one_download_multiple_task_links": true
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T045",
+      "excel_row": 66,
+      "domain": "风扇与压气机",
+      "topic": "部件构型",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "轴流压气机",
+          "aliases": [
+            "轴流式压气机"
+          ]
+        },
+        "en": {
+          "primary": "axial compressor",
+          "aliases": [
+            "axial-flow compressor"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "预旋导叶",
+        "可调静子叶片",
+        "离心压气机"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "与离心压气机分别建类。",
+      "search_queries": {
+        "en_broad": "(\"axial compressor\" OR \"axial-flow compressor\")",
+        "en_focused": "(\"axial compressor\" OR \"axial-flow compressor\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"轴流压气机\" OR \"轴流式压气机\")",
+        "zh_focused": "(\"轴流压气机\" OR \"轴流式压气机\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"axial compressor\"|\"axial-flow compressor\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/部件构型/T045_轴流压气机"
+    },
+    {
+      "task_id": "T046",
+      "excel_row": 67,
+      "domain": "风扇与压气机",
+      "topic": "部件构型",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "离心压气机",
+          "aliases": [
+            "离心式压气机"
+          ]
+        },
+        "en": {
+          "primary": "centrifugal compressor",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "轴流压气机",
+        "跨声速风扇",
+        "整体叶盘"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "工业资料可按物理相关性补充。",
+      "search_queries": {
+        "en_broad": "(\"centrifugal compressor\")",
+        "en_focused": "(\"centrifugal compressor\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"离心压气机\" OR \"离心式压气机\")",
+        "zh_focused": "(\"离心压气机\" OR \"离心式压气机\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"centrifugal compressor\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/部件构型/T046_离心压气机"
+    },
+    {
+      "task_id": "T047",
+      "excel_row": 68,
+      "domain": "风扇与压气机",
+      "topic": "部件构型",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "跨声速风扇",
+          "aliases": []
+        },
+        "en": {
+          "primary": "transonic fan",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "风扇气动设计",
+        "轴流压气机",
+        "离心压气机"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "限定推进用风扇。",
+      "search_queries": {
+        "en_broad": "(\"transonic fan\")",
+        "en_focused": "(\"transonic fan\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"跨声速风扇\")",
+        "zh_focused": "(\"跨声速风扇\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"transonic fan\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/部件构型/T047_跨声速风扇"
+    },
+    {
+      "task_id": "T048",
+      "excel_row": 69,
+      "domain": "风扇与压气机",
+      "topic": "部件构型",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "整体叶盘",
+          "aliases": [
+            "整体叶轮盘"
+          ]
+        },
+        "en": {
+          "primary": "blisk",
+          "aliases": [
+            "integrally bladed disk",
+            "integrally bladed rotor"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "叶片失谐",
+        "轴流压气机",
+        "离心压气机"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "跨压气机、结构、制造三个主题。",
+      "search_queries": {
+        "en_broad": "(\"blisk\" OR \"integrally bladed disk\" OR \"integrally bladed rotor\")",
+        "en_focused": "(\"blisk\" OR \"integrally bladed disk\" OR \"integrally bladed rotor\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"整体叶盘\" OR \"整体叶轮盘\")",
+        "zh_focused": "(\"整体叶盘\" OR \"整体叶轮盘\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"blisk\"|\"integrally bladed disk\"|\"integrally bladed rotor\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/部件构型/T048_整体叶盘"
+    },
+    {
+      "task_id": "T049",
+      "excel_row": 70,
+      "domain": "风扇与压气机",
+      "topic": "叶栅设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "压气机叶栅",
+          "aliases": []
+        },
+        "en": {
+          "primary": "compressor cascade",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "压气机平均半径设计",
+        "可控扩散叶型",
+        "扩散因子"
+      ],
+      "collection_focus": "叶栅设计\n叶型设计、叶栅性能与试验",
+      "retrieval_boundary": "叶栅试验是高价值基础来源。",
+      "search_queries": {
+        "en_broad": "(\"compressor cascade\")",
+        "en_focused": "(\"compressor cascade\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"压气机叶栅\")",
+        "zh_focused": "(\"压气机叶栅\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"compressor cascade\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/叶栅设计/T049_压气机叶栅"
+    },
+    {
+      "task_id": "T050",
+      "excel_row": 71,
+      "domain": "风扇与压气机",
+      "topic": "叶栅设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "可控扩散叶型",
+          "aliases": [
+            "可控扩散叶片型线"
+          ]
+        },
+        "en": {
+          "primary": "controlled diffusion airfoil",
+          "aliases": [
+            "controlled diffusion aerofoil"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "压气机叶栅",
+        "扩散因子",
+        "预旋导叶"
+      ],
+      "collection_focus": "叶栅设计\n叶型设计、叶栅性能与试验",
+      "retrieval_boundary": "保留airfoil/aerofoil拼写。",
+      "search_queries": {
+        "en_broad": "(\"controlled diffusion airfoil\" OR \"controlled diffusion aerofoil\")",
+        "en_focused": "(\"controlled diffusion airfoil\" OR \"controlled diffusion aerofoil\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"可控扩散叶型\" OR \"可控扩散叶片型线\")",
+        "zh_focused": "(\"可控扩散叶型\" OR \"可控扩散叶片型线\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"controlled diffusion airfoil\"|\"controlled diffusion aerofoil\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/叶栅设计/T050_可控扩散叶型"
+    },
+    {
+      "task_id": "T051",
+      "excel_row": 72,
+      "domain": "风扇与压气机",
+      "topic": "叶栅设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "扩散因子",
+          "aliases": []
+        },
+        "en": {
+          "primary": "diffusion factor",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "压气机叶栅",
+        "可控扩散叶型",
+        "预旋导叶"
+      ],
+      "collection_focus": "叶栅设计\n叶型设计、叶栅性能与试验",
+      "retrieval_boundary": "需附压气机语境，避免扩散过程噪声。",
+      "search_queries": {
+        "en_broad": "(\"diffusion factor\")",
+        "en_focused": "(\"diffusion factor\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"扩散因子\")",
+        "zh_focused": "(\"扩散因子\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"diffusion factor\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/叶栅设计/T051_扩散因子"
+    },
+    {
+      "task_id": "T052",
+      "excel_row": 73,
+      "domain": "风扇与压气机",
+      "topic": "叶栅设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "预旋导叶",
+          "aliases": [
+            "进口导叶"
+          ]
+        },
+        "en": {
+          "primary": "inlet guide vane",
+          "aliases": [
+            "IGV"
+          ],
+          "abbreviation": "IGV"
+        }
+      },
+      "related_terms": [
+        "轴流压气机",
+        "压气机叶栅",
+        "可控扩散叶型"
+      ],
+      "collection_focus": "叶栅设计\n叶型设计、叶栅性能与试验",
+      "retrieval_boundary": "IGV有歧义，聚焦检索追加压气机。",
+      "search_queries": {
+        "en_broad": "(\"inlet guide vane\")",
+        "en_focused": "(\"inlet guide vane\" OR \"IGV\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"预旋导叶\" OR \"进口导叶\")",
+        "zh_focused": "(\"预旋导叶\" OR \"进口导叶\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"inlet guide vane\"|\"IGV\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/叶栅设计/T052_预旋导叶"
+    },
+    {
+      "task_id": "T053",
+      "excel_row": 74,
+      "domain": "风扇与压气机",
+      "topic": "叶栅设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "可调静子叶片",
+          "aliases": [
+            "可调静叶"
+          ]
+        },
+        "en": {
+          "primary": "variable stator vane",
+          "aliases": [
+            "VSV"
+          ],
+          "abbreviation": "VSV"
+        }
+      },
+      "related_terms": [
+        "轴流压气机",
+        "可变几何控制",
+        "压气机叶栅"
+      ],
+      "collection_focus": "叶栅设计\n叶型设计、叶栅性能与试验",
+      "retrieval_boundary": "与进口导叶相关但不相同。",
+      "search_queries": {
+        "en_broad": "(\"variable stator vane\")",
+        "en_focused": "(\"variable stator vane\" OR \"VSV\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"可调静子叶片\" OR \"可调静叶\")",
+        "zh_focused": "(\"可调静子叶片\" OR \"可调静叶\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"variable stator vane\"|\"VSV\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/叶栅设计/T053_可调静子叶片"
+    },
+    {
+      "task_id": "T054",
+      "excel_row": 75,
+      "domain": "风扇与压气机",
+      "topic": "三维流动",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "叶尖泄漏流",
+          "aliases": [
+            "叶顶泄漏流"
+          ]
+        },
+        "en": {
+          "primary": "tip leakage flow",
+          "aliases": [
+            "tip leakage"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "叶顶间隙",
+        "角区分离",
+        "端壁边界层"
+      ],
+      "collection_focus": "三维流动\n流动结构、损失控制与验证",
+      "retrieval_boundary": "压气机与涡轮均适用，勿限于单一部件。",
+      "search_queries": {
+        "en_broad": "(\"tip leakage flow\" OR \"tip leakage\")",
+        "en_focused": "(\"tip leakage flow\" OR \"tip leakage\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"叶尖泄漏流\" OR \"叶顶泄漏流\")",
+        "zh_focused": "(\"叶尖泄漏流\" OR \"叶顶泄漏流\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"tip leakage flow\"|\"tip leakage\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/三维流动/T054_叶尖泄漏流"
+    },
+    {
+      "task_id": "T055",
+      "excel_row": 76,
+      "domain": "风扇与压气机",
+      "topic": "三维流动",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "角区分离",
+          "aliases": [
+            "角区失速"
+          ]
+        },
+        "en": {
+          "primary": "corner separation",
+          "aliases": [
+            "corner stall"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "端壁边界层",
+        "叶尖泄漏流",
+        "机匣处理"
+      ],
+      "collection_focus": "三维流动\n流动结构、损失控制与验证",
+      "retrieval_boundary": "corner stall作为检索相关写法，区分局部现象与整体失稳。",
+      "search_queries": {
+        "en_broad": "(\"corner separation\" OR \"corner stall\")",
+        "en_focused": "(\"corner separation\" OR \"corner stall\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"角区分离\" OR \"角区失速\")",
+        "zh_focused": "(\"角区分离\" OR \"角区失速\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"corner separation\"|\"corner stall\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/三维流动/T055_角区分离"
+    },
+    {
+      "task_id": "T056",
+      "excel_row": 77,
+      "domain": "风扇与压气机",
+      "topic": "三维流动",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "端壁边界层",
+          "aliases": []
+        },
+        "en": {
+          "primary": "endwall boundary layer",
+          "aliases": [
+            "end-wall boundary layer"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "角区分离",
+        "叶尖泄漏流",
+        "机匣处理"
+      ],
+      "collection_focus": "三维流动\n流动结构、损失控制与验证",
+      "retrieval_boundary": "跨压气机与涡轮。",
+      "search_queries": {
+        "en_broad": "(\"endwall boundary layer\" OR \"end-wall boundary layer\")",
+        "en_focused": "(\"endwall boundary layer\" OR \"end-wall boundary layer\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"端壁边界层\")",
+        "zh_focused": "(\"端壁边界层\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"endwall boundary layer\"|\"end-wall boundary layer\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/三维流动/T056_端壁边界层"
+    },
+    {
+      "task_id": "T057",
+      "excel_row": 78,
+      "domain": "风扇与压气机",
+      "topic": "三维流动",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "机匣处理",
+          "aliases": []
+        },
+        "en": {
+          "primary": "casing treatment",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "喘振裕度",
+        "叶尖泄漏流",
+        "角区分离"
+      ],
+      "collection_focus": "三维流动\n流动结构、损失控制与验证",
+      "retrieval_boundary": "不是一般表面防护处理。",
+      "search_queries": {
+        "en_broad": "(\"casing treatment\")",
+        "en_focused": "(\"casing treatment\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"机匣处理\")",
+        "zh_focused": "(\"机匣处理\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"casing treatment\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/三维流动/T057_机匣处理"
+    },
+    {
+      "task_id": "T058",
+      "excel_row": 79,
+      "domain": "风扇与压气机",
+      "topic": "稳定性",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "旋转失速",
+          "aliases": []
+        },
+        "en": {
+          "primary": "rotating stall",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "喘振",
+        "喘振裕度"
+      ],
+      "collection_focus": "稳定性\n失稳机理、裕度评估与试验",
+      "retrieval_boundary": "与喘振不同，二者不能合并为同义词。",
+      "search_queries": {
+        "en_broad": "(\"rotating stall\")",
+        "en_focused": "(\"rotating stall\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"旋转失速\")",
+        "zh_focused": "(\"旋转失速\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"rotating stall\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/稳定性/T058_旋转失速"
+    },
+    {
+      "task_id": "T059",
+      "excel_row": 80,
+      "domain": "风扇与压气机",
+      "topic": "稳定性",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "喘振",
+          "aliases": []
+        },
+        "en": {
+          "primary": "compressor surge",
+          "aliases": [
+            "surge"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "喘振裕度",
+        "旋转失速"
+      ],
+      "collection_focus": "稳定性\n失稳机理、裕度评估与试验",
+      "retrieval_boundary": "surge单独检索含大量电气等噪声。",
+      "search_queries": {
+        "en_broad": "(\"compressor surge\" OR \"surge\")",
+        "en_focused": "(\"compressor surge\" OR \"surge\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"喘振\")",
+        "zh_focused": "(\"喘振\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"compressor surge\"|\"surge\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/稳定性/T059_喘振"
+    },
+    {
+      "task_id": "T060",
+      "excel_row": 81,
+      "domain": "风扇与压气机",
+      "topic": "稳定性",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "喘振裕度",
+          "aliases": []
+        },
+        "en": {
+          "primary": "surge margin",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "进气畸变",
+        "喘振",
+        "机匣处理"
+      ],
+      "collection_focus": "稳定性\n失稳机理、裕度评估与试验",
+      "retrieval_boundary": "不同定义/工作线基准需保留。",
+      "search_queries": {
+        "en_broad": "(\"surge margin\")",
+        "en_focused": "(\"surge margin\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"喘振裕度\")",
+        "zh_focused": "(\"喘振裕度\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"surge margin\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/稳定性/T060_喘振裕度"
+    },
+    {
+      "task_id": "T061",
+      "excel_row": 82,
+      "domain": "风扇与压气机",
+      "topic": "性能特性",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "压气机特性图",
+          "aliases": [
+            "压气机特性曲线"
+          ]
+        },
+        "en": {
+          "primary": "compressor map",
+          "aliases": [
+            "compressor characteristic map"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "部件匹配",
+        "多级匹配"
+      ],
+      "collection_focus": "性能特性\n特性图、级间匹配与数据",
+      "retrieval_boundary": "关注修正流量、修正转速、压比和效率。",
+      "search_queries": {
+        "en_broad": "(\"compressor map\" OR \"compressor characteristic map\")",
+        "en_focused": "(\"compressor map\" OR \"compressor characteristic map\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"压气机特性图\" OR \"压气机特性曲线\")",
+        "zh_focused": "(\"压气机特性图\" OR \"压气机特性曲线\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"compressor map\"|\"compressor characteristic map\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/性能特性/T061_压气机特性图"
+    },
+    {
+      "task_id": "T062",
+      "excel_row": 83,
+      "domain": "风扇与压气机",
+      "topic": "性能特性",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "多级匹配",
+          "aliases": [
+            "级间匹配"
+          ]
+        },
+        "en": {
+          "primary": "multistage compressor matching",
+          "aliases": [
+            "stage matching"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "压气机特性图"
+      ],
+      "collection_focus": "性能特性\n特性图、级间匹配与数据",
+      "retrieval_boundary": "与整机部件匹配区分层级。",
+      "search_queries": {
+        "en_broad": "(\"multistage compressor matching\" OR \"stage matching\")",
+        "en_focused": "(\"multistage compressor matching\" OR \"stage matching\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"多级匹配\" OR \"级间匹配\")",
+        "zh_focused": "(\"多级匹配\" OR \"级间匹配\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"multistage compressor matching\"|\"stage matching\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/性能特性/T062_多级匹配"
+    },
+    {
+      "task_id": "T252",
+      "excel_row": 84,
+      "domain": "风扇与压气机",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "风扇气动设计",
+          "aliases": []
+        },
+        "en": {
+          "primary": "fan aerodynamic design",
+          "aliases": [
+            "aerodynamic fan design"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "跨声速风扇",
+        "压气机平均半径设计",
+        "径向平衡"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"fan aerodynamic design\" OR \"aerodynamic fan design\")",
+        "en_focused": "(\"fan aerodynamic design\" OR \"aerodynamic fan design\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"风扇气动设计\")",
+        "zh_focused": "(\"风扇气动设计\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"fan aerodynamic design\"|\"aerodynamic fan design\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/初步设计/T252_风扇气动设计"
+    },
+    {
+      "task_id": "T253",
+      "excel_row": 85,
+      "domain": "风扇与压气机",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "压气机平均半径设计",
+          "aliases": [
+            "压气机中径设计"
+          ]
+        },
+        "en": {
+          "primary": "compressor meanline design",
+          "aliases": [
+            "compressor mean-line design"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "压气机叶栅",
+        "风扇气动设计",
+        "径向平衡"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"compressor meanline design\" OR \"compressor mean-line design\")",
+        "en_focused": "(\"compressor meanline design\" OR \"compressor mean-line design\") AND (\"compressor\" OR \"fan\" OR \"turbomachinery\")",
+        "zh_broad": "(\"压气机平均半径设计\" OR \"压气机中径设计\")",
+        "zh_focused": "(\"压气机平均半径设计\" OR \"压气机中径设计\") AND (\"压气机\" OR \"风扇\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"compressor meanline design\"|\"compressor mean-line design\")+(\"compressor\"|\"fan\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/初步设计/T253_压气机平均半径设计"
+    },
+    {
+      "task_id": "T254",
+      "excel_row": 86,
+      "domain": "风扇与压气机",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "径向平衡",
+          "aliases": [
+            "径向平衡理论"
+          ]
+        },
+        "en": {
+          "primary": "radial equilibrium",
+          "aliases": [
+            "radial equilibrium theory"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "通流设计",
+        "风扇气动设计",
+        "压气机平均半径设计"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"radial equilibrium\" OR \"radial equilibrium theory\")",
+        "en_focused": "(\"radial equilibrium\" OR \"radial equilibrium theory\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"径向平衡\" OR \"径向平衡理论\")",
+        "zh_focused": "(\"径向平衡\" OR \"径向平衡理论\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"radial equilibrium\"|\"radial equilibrium theory\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "风扇与压气机/初步设计/T254_径向平衡"
+    },
+    {
+      "task_id": "T063",
+      "excel_row": 87,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "部件构型",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "环形燃烧室",
+          "aliases": []
+        },
+        "en": {
+          "primary": "annular combustor",
+          "aliases": [
+            "annular combustion chamber"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "旋流器",
+        "管形燃烧室",
+        "管环形燃烧室"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "与管形、管环形分别标注。",
+      "search_queries": {
+        "en_broad": "(\"annular combustor\" OR \"annular combustion chamber\")",
+        "en_focused": "(\"annular combustor\" OR \"annular combustion chamber\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"环形燃烧室\")",
+        "zh_focused": "(\"环形燃烧室\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"annular combustor\"|\"annular combustion chamber\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/部件构型/T063_环形燃烧室"
+    },
+    {
+      "task_id": "T064",
+      "excel_row": 88,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "部件构型",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "旋流器",
+          "aliases": [
+            "旋流发生器"
+          ]
+        },
+        "en": {
+          "primary": "swirler",
+          "aliases": [
+            "air swirler"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "环形燃烧室",
+        "管形燃烧室",
+        "管环形燃烧室"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "聚焦燃烧室，区分管流旋流器。",
+      "search_queries": {
+        "en_broad": "(\"swirler\" OR \"air swirler\")",
+        "en_focused": "(\"swirler\" OR \"air swirler\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"旋流器\" OR \"旋流发生器\")",
+        "zh_focused": "(\"旋流器\" OR \"旋流发生器\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"swirler\"|\"air swirler\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/部件构型/T064_旋流器"
+    },
+    {
+      "task_id": "T065",
+      "excel_row": 89,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "燃烧组织",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "燃油雾化",
+          "aliases": [
+            "燃料雾化"
+          ]
+        },
+        "en": {
+          "primary": "fuel atomization",
+          "aliases": [
+            "fuel atomisation"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "喷雾燃烧",
+        "燃油喷嘴",
+        "预混燃烧"
+      ],
+      "collection_focus": "燃烧组织\n燃油喷注、混合与燃烧研究",
+      "retrieval_boundary": "英美拼写均保留。",
+      "search_queries": {
+        "en_broad": "(\"fuel atomization\" OR \"fuel atomisation\")",
+        "en_focused": "(\"fuel atomization\" OR \"fuel atomisation\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"燃油雾化\" OR \"燃料雾化\")",
+        "zh_focused": "(\"燃油雾化\" OR \"燃料雾化\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"fuel atomization\"|\"fuel atomisation\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/燃烧组织/T065_燃油雾化"
+    },
+    {
+      "task_id": "T066",
+      "excel_row": 90,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "燃烧组织",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "喷雾燃烧",
+          "aliases": []
+        },
+        "en": {
+          "primary": "spray combustion",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "燃油雾化",
+        "预混燃烧",
+        "非预混燃烧"
+      ],
+      "collection_focus": "燃烧组织\n燃油喷注、混合与燃烧研究",
+      "retrieval_boundary": "与气态预混燃烧分别处理。",
+      "search_queries": {
+        "en_broad": "(\"spray combustion\")",
+        "en_focused": "(\"spray combustion\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"喷雾燃烧\")",
+        "zh_focused": "(\"喷雾燃烧\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"spray combustion\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/燃烧组织/T066_喷雾燃烧"
+    },
+    {
+      "task_id": "T067",
+      "excel_row": 91,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "燃烧组织",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "预混燃烧",
+          "aliases": []
+        },
+        "en": {
+          "primary": "premixed combustion",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "燃油雾化",
+        "喷雾燃烧",
+        "非预混燃烧"
+      ],
+      "collection_focus": "燃烧组织\n燃油喷注、混合与燃烧研究",
+      "retrieval_boundary": "与部分预混/非预混分开标注。",
+      "search_queries": {
+        "en_broad": "(\"premixed combustion\")",
+        "en_focused": "(\"premixed combustion\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"预混燃烧\")",
+        "zh_focused": "(\"预混燃烧\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"premixed combustion\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/燃烧组织/T067_预混燃烧"
+    },
+    {
+      "task_id": "T068",
+      "excel_row": 92,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "燃烧组织",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "非预混燃烧",
+          "aliases": [
+            "扩散燃烧"
+          ]
+        },
+        "en": {
+          "primary": "nonpremixed combustion",
+          "aliases": [
+            "non-premixed combustion",
+            "diffusion flame"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "燃油雾化",
+        "喷雾燃烧",
+        "预混燃烧"
+      ],
+      "collection_focus": "燃烧组织\n燃油喷注、混合与燃烧研究",
+      "retrieval_boundary": "diffusion flame用于相关召回，概念粒度不同。",
+      "search_queries": {
+        "en_broad": "(\"nonpremixed combustion\" OR \"non-premixed combustion\" OR \"diffusion flame\")",
+        "en_focused": "(\"nonpremixed combustion\" OR \"non-premixed combustion\" OR \"diffusion flame\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"非预混燃烧\" OR \"扩散燃烧\")",
+        "zh_focused": "(\"非预混燃烧\" OR \"扩散燃烧\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"nonpremixed combustion\"|\"non-premixed combustion\"|\"diffusion flame\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/燃烧组织/T068_非预混燃烧"
+    },
+    {
+      "task_id": "T069",
+      "excel_row": 93,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "燃烧组织",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "贫油直喷",
+          "aliases": []
+        },
+        "en": {
+          "primary": "lean direct injection",
+          "aliases": [
+            "LDI"
+          ],
+          "abbreviation": "LDI"
+        }
+      },
+      "related_terms": [
+        "氮氧化物排放",
+        "燃油雾化",
+        "喷雾燃烧"
+      ],
+      "collection_focus": "燃烧组织\n燃油喷注、混合与燃烧研究",
+      "retrieval_boundary": "LDI与LPP/RQL技术路线分开。",
+      "search_queries": {
+        "en_broad": "(\"lean direct injection\")",
+        "en_focused": "(\"lean direct injection\" OR \"LDI\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"贫油直喷\")",
+        "zh_focused": "(\"贫油直喷\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"lean direct injection\"|\"LDI\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/燃烧组织/T069_贫油直喷"
+    },
+    {
+      "task_id": "T070",
+      "excel_row": 94,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "燃烧组织",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "贫油预混预蒸发",
+          "aliases": []
+        },
+        "en": {
+          "primary": "lean premixed prevaporized",
+          "aliases": [
+            "lean premixed prevaporised",
+            "LPP"
+          ],
+          "abbreviation": "LPP"
+        }
+      },
+      "related_terms": [
+        "燃油雾化",
+        "喷雾燃烧",
+        "预混燃烧"
+      ],
+      "collection_focus": "燃烧组织\n燃油喷注、混合与燃烧研究",
+      "retrieval_boundary": "使用完整短语避免缩写歧义。",
+      "search_queries": {
+        "en_broad": "(\"lean premixed prevaporized\" OR \"lean premixed prevaporised\")",
+        "en_focused": "(\"lean premixed prevaporized\" OR \"lean premixed prevaporised\" OR \"LPP\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"贫油预混预蒸发\")",
+        "zh_focused": "(\"贫油预混预蒸发\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"lean premixed prevaporized\"|\"lean premixed prevaporised\"|\"LPP\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/燃烧组织/T070_贫油预混预蒸发"
+    },
+    {
+      "task_id": "T071",
+      "excel_row": 95,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "燃烧组织",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "富油燃烧快速掺混贫油燃烧",
+          "aliases": [
+            "富油快淬贫油燃烧"
+          ]
+        },
+        "en": {
+          "primary": "rich burn quick quench lean burn",
+          "aliases": [
+            "RQL"
+          ],
+          "abbreviation": "RQL"
+        }
+      },
+      "related_terms": [
+        "燃油雾化",
+        "喷雾燃烧",
+        "预混燃烧"
+      ],
+      "collection_focus": "燃烧组织\n燃油喷注、混合与燃烧研究",
+      "retrieval_boundary": "译名存在差异，保留英文全称。",
+      "search_queries": {
+        "en_broad": "(\"rich burn quick quench lean burn\")",
+        "en_focused": "(\"rich burn quick quench lean burn\" OR \"RQL\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"富油燃烧快速掺混贫油燃烧\" OR \"富油快淬贫油燃烧\")",
+        "zh_focused": "(\"富油燃烧快速掺混贫油燃烧\" OR \"富油快淬贫油燃烧\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"rich burn quick quench lean burn\"|\"RQL\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/燃烧组织/T071_富油燃烧快速掺混贫油燃烧"
+    },
+    {
+      "task_id": "T072",
+      "excel_row": 96,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "稳定与点火",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "燃烧不稳定性",
+          "aliases": []
+        },
+        "en": {
+          "primary": "combustion instability",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "热声不稳定性",
+        "贫油熄火",
+        "高空再点火"
+      ],
+      "collection_focus": "稳定与点火\n燃烧稳定、点火与熄火试验",
+      "retrieval_boundary": "热声不稳定是重要相关机制，范围不完全相同。",
+      "search_queries": {
+        "en_broad": "(\"combustion instability\")",
+        "en_focused": "(\"combustion instability\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"燃烧不稳定性\")",
+        "zh_focused": "(\"燃烧不稳定性\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"combustion instability\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/稳定与点火/T072_燃烧不稳定性"
+    },
+    {
+      "task_id": "T073",
+      "excel_row": 97,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "稳定与点火",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "热声不稳定性",
+          "aliases": [
+            "热声振荡"
+          ]
+        },
+        "en": {
+          "primary": "thermoacoustic instability",
+          "aliases": [
+            "thermo-acoustic instability"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "燃烧不稳定性",
+        "贫油熄火",
+        "高空再点火"
+      ],
+      "collection_focus": "稳定与点火\n燃烧稳定、点火与熄火试验",
+      "retrieval_boundary": "区分燃烧驱动与其他声学问题。",
+      "search_queries": {
+        "en_broad": "(\"thermoacoustic instability\" OR \"thermo-acoustic instability\")",
+        "en_focused": "(\"thermoacoustic instability\" OR \"thermo-acoustic instability\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"热声不稳定性\" OR \"热声振荡\")",
+        "zh_focused": "(\"热声不稳定性\" OR \"热声振荡\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"thermoacoustic instability\"|\"thermo-acoustic instability\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/稳定与点火/T073_热声不稳定性"
+    },
+    {
+      "task_id": "T074",
+      "excel_row": 98,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "稳定与点火",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "贫油熄火",
+          "aliases": [
+            "贫油熄焰"
+          ]
+        },
+        "en": {
+          "primary": "lean blowout",
+          "aliases": [
+            "lean blow-off"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "燃烧不稳定性",
+        "热声不稳定性",
+        "高空再点火"
+      ],
+      "collection_focus": "稳定与点火\n燃烧稳定、点火与熄火试验",
+      "retrieval_boundary": "注意blowout与blowoff的场景差异。",
+      "search_queries": {
+        "en_broad": "(\"lean blowout\" OR \"lean blow-off\")",
+        "en_focused": "(\"lean blowout\" OR \"lean blow-off\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"贫油熄火\" OR \"贫油熄焰\")",
+        "zh_focused": "(\"贫油熄火\" OR \"贫油熄焰\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"lean blowout\"|\"lean blow-off\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/稳定与点火/T074_贫油熄火"
+    },
+    {
+      "task_id": "T075",
+      "excel_row": 99,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "稳定与点火",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "高空再点火",
+          "aliases": [
+            "高空再起动点火"
+          ]
+        },
+        "en": {
+          "primary": "altitude relight",
+          "aliases": [
+            "high altitude relight"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "点火系统",
+        "燃烧不稳定性",
+        "热声不稳定性"
+      ],
+      "collection_focus": "稳定与点火\n燃烧稳定、点火与熄火试验",
+      "retrieval_boundary": "聚焦航空燃烧室。",
+      "search_queries": {
+        "en_broad": "(\"altitude relight\" OR \"high altitude relight\")",
+        "en_focused": "(\"altitude relight\" OR \"high altitude relight\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"高空再点火\" OR \"高空再起动点火\")",
+        "zh_focused": "(\"高空再点火\" OR \"高空再起动点火\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"altitude relight\"|\"high altitude relight\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/稳定与点火/T075_高空再点火"
+    },
+    {
+      "task_id": "T076",
+      "excel_row": 100,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "温度与排放",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "出口温度分布",
+          "aliases": [
+            "燃烧室出口温度场"
+          ]
+        },
+        "en": {
+          "primary": "combustor exit temperature distribution",
+          "aliases": [
+            "combustor pattern factor"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "热斑迁移",
+        "氮氧化物排放",
+        "烟炱生成"
+      ],
+      "collection_focus": "温度与排放\n温度分布、排放测量与改进",
+      "retrieval_boundary": "pattern factor是分布指标，非温度场的严格同义词。",
+      "search_queries": {
+        "en_broad": "(\"combustor exit temperature distribution\" OR \"combustor pattern factor\")",
+        "en_focused": "(\"combustor exit temperature distribution\" OR \"combustor pattern factor\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"出口温度分布\" OR \"燃烧室出口温度场\")",
+        "zh_focused": "(\"出口温度分布\" OR \"燃烧室出口温度场\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"combustor exit temperature distribution\"|\"combustor pattern factor\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/温度与排放/T076_出口温度分布"
+    },
+    {
+      "task_id": "T077",
+      "excel_row": 101,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "温度与排放",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "氮氧化物排放",
+          "aliases": [
+            "NOx排放"
+          ]
+        },
+        "en": {
+          "primary": "nitrogen oxide emissions",
+          "aliases": [
+            "NOx emissions"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "贫油直喷",
+        "出口温度分布",
+        "烟炱生成"
+      ],
+      "collection_focus": "温度与排放\n温度分布、排放测量与改进",
+      "retrieval_boundary": "追加燃气轮机/航空燃烧室限定。",
+      "search_queries": {
+        "en_broad": "(\"nitrogen oxide emissions\" OR \"NOx emissions\")",
+        "en_focused": "(\"nitrogen oxide emissions\" OR \"NOx emissions\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"氮氧化物排放\" OR \"NOx排放\")",
+        "zh_focused": "(\"氮氧化物排放\" OR \"NOx排放\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"nitrogen oxide emissions\"|\"NOx emissions\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/温度与排放/T077_氮氧化物排放"
+    },
+    {
+      "task_id": "T078",
+      "excel_row": 102,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "温度与排放",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "烟炱生成",
+          "aliases": [
+            "碳烟生成"
+          ]
+        },
+        "en": {
+          "primary": "soot formation",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "出口温度分布",
+        "氮氧化物排放",
+        "燃烧效率"
+      ],
+      "collection_focus": "温度与排放\n温度分布、排放测量与改进",
+      "retrieval_boundary": "与可见烟度和颗粒物排放相关但不同。",
+      "search_queries": {
+        "en_broad": "(\"soot formation\")",
+        "en_focused": "(\"soot formation\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"烟炱生成\" OR \"碳烟生成\")",
+        "zh_focused": "(\"烟炱生成\" OR \"碳烟生成\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"soot formation\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/温度与排放/T078_烟炱生成"
+    },
+    {
+      "task_id": "T255",
+      "excel_row": 103,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "部件构型",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "管形燃烧室",
+          "aliases": [
+            "管式燃烧室"
+          ]
+        },
+        "en": {
+          "primary": "can combustor",
+          "aliases": [
+            "tubular combustor"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "环形燃烧室",
+        "旋流器",
+        "管环形燃烧室"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"can combustor\" OR \"tubular combustor\")",
+        "en_focused": "(\"can combustor\" OR \"tubular combustor\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"管形燃烧室\" OR \"管式燃烧室\")",
+        "zh_focused": "(\"管形燃烧室\" OR \"管式燃烧室\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"can combustor\"|\"tubular combustor\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/部件构型/T255_管形燃烧室"
+    },
+    {
+      "task_id": "T256",
+      "excel_row": 104,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "部件构型",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "管环形燃烧室",
+          "aliases": [
+            "管环式燃烧室"
+          ]
+        },
+        "en": {
+          "primary": "can-annular combustor",
+          "aliases": [
+            "cannular combustor"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "环形燃烧室",
+        "旋流器",
+        "管形燃烧室"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"can-annular combustor\" OR \"cannular combustor\")",
+        "en_focused": "(\"can-annular combustor\" OR \"cannular combustor\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"管环形燃烧室\" OR \"管环式燃烧室\")",
+        "zh_focused": "(\"管环形燃烧室\" OR \"管环式燃烧室\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"can-annular combustor\"|\"cannular combustor\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/部件构型/T256_管环形燃烧室"
+    },
+    {
+      "task_id": "T257",
+      "excel_row": 105,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "燃烧室尺寸设计",
+          "aliases": []
+        },
+        "en": {
+          "primary": "combustor sizing",
+          "aliases": [
+            "combustion chamber sizing"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "燃烧室扩压器"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"combustor sizing\" OR \"combustion chamber sizing\")",
+        "en_focused": "(\"combustor sizing\" OR \"combustion chamber sizing\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"燃烧室尺寸设计\")",
+        "zh_focused": "(\"燃烧室尺寸设计\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"combustor sizing\"|\"combustion chamber sizing\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/初步设计/T257_燃烧室尺寸设计"
+    },
+    {
+      "task_id": "T258",
+      "excel_row": 106,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "燃烧室扩压器",
+          "aliases": [
+            "燃烧室前扩压器"
+          ]
+        },
+        "en": {
+          "primary": "combustor diffuser",
+          "aliases": [
+            "pre-combustor diffuser"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "燃烧室尺寸设计"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"combustor diffuser\" OR \"pre-combustor diffuser\")",
+        "en_focused": "(\"combustor diffuser\" OR \"pre-combustor diffuser\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"燃烧室扩压器\" OR \"燃烧室前扩压器\")",
+        "zh_focused": "(\"燃烧室扩压器\" OR \"燃烧室前扩压器\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"combustor diffuser\"|\"pre-combustor diffuser\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/初步设计/T258_燃烧室扩压器"
+    },
+    {
+      "task_id": "T259",
+      "excel_row": 107,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "部件构型",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "火焰筒",
+          "aliases": [
+            "燃烧室火焰筒"
+          ]
+        },
+        "en": {
+          "primary": "combustor liner",
+          "aliases": [
+            "combustion liner"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "对流换热",
+        "环形燃烧室",
+        "旋流器"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"combustor liner\" OR \"combustion liner\")",
+        "en_focused": "(\"combustor liner\" OR \"combustion liner\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"火焰筒\" OR \"燃烧室火焰筒\")",
+        "zh_focused": "(\"火焰筒\" OR \"燃烧室火焰筒\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"combustor liner\"|\"combustion liner\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/部件构型/T259_火焰筒"
+    },
+    {
+      "task_id": "T260",
+      "excel_row": 108,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "温度与排放",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "燃烧效率",
+          "aliases": []
+        },
+        "en": {
+          "primary": "combustion efficiency",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "出口温度分布",
+        "氮氧化物排放",
+        "烟炱生成"
+      ],
+      "collection_focus": "温度与排放\n温度分布、排放测量与改进",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"combustion efficiency\")",
+        "en_focused": "(\"combustion efficiency\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"燃烧效率\")",
+        "zh_focused": "(\"燃烧效率\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"combustion efficiency\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/温度与排放/T260_燃烧效率"
+    },
+    {
+      "task_id": "T261",
+      "excel_row": 109,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "加力燃烧",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "加力燃烧室",
+          "aliases": [
+            "加力燃烧器"
+          ]
+        },
+        "en": {
+          "primary": "afterburner",
+          "aliases": [
+            "reheat combustor"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "火焰稳定器",
+        "收敛扩张喷管"
+      ],
+      "collection_focus": "加力燃烧\n加力燃烧原理、结构与设计",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"afterburner\" OR \"reheat combustor\")",
+        "en_focused": "(\"afterburner\" OR \"reheat combustor\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"加力燃烧室\" OR \"加力燃烧器\")",
+        "zh_focused": "(\"加力燃烧室\" OR \"加力燃烧器\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"afterburner\"|\"reheat combustor\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/加力燃烧/T261_加力燃烧室"
+    },
+    {
+      "task_id": "T262",
+      "excel_row": 110,
+      "domain": "燃烧室与加力燃烧室",
+      "topic": "加力燃烧",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "火焰稳定器",
+          "aliases": [
+            "稳焰器"
+          ]
+        },
+        "en": {
+          "primary": "flameholder",
+          "aliases": [
+            "flame holder"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "加力燃烧室"
+      ],
+      "collection_focus": "加力燃烧\n加力燃烧原理、结构与设计",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"flameholder\" OR \"flame holder\")",
+        "en_focused": "(\"flameholder\" OR \"flame holder\") AND (\"gas turbine\" OR \"aircraft engine\" OR \"combustor\" OR \"afterburner\")",
+        "zh_broad": "(\"火焰稳定器\" OR \"稳焰器\")",
+        "zh_focused": "(\"火焰稳定器\" OR \"稳焰器\") AND (\"燃气轮机\" OR \"航空发动机\" OR \"燃烧室\" OR \"加力燃烧室\")",
+        "ntrs_focused": "(\"flameholder\"|\"flame holder\")+(\"gas turbine\"|\"aircraft engine\"|\"combustor\"|\"afterburner\")"
+      },
+      "output_subdir": "燃烧室与加力燃烧室/加力燃烧/T262_火焰稳定器"
+    },
+    {
+      "task_id": "T079",
+      "excel_row": 111,
+      "domain": "涡轮",
+      "topic": "部件构型",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "高压涡轮",
+          "aliases": []
+        },
+        "en": {
+          "primary": "high pressure turbine",
+          "aliases": [
+            "high-pressure turbine",
+            "HPT"
+          ],
+          "abbreviation": "HPT"
+        }
+      },
+      "related_terms": [
+        "低压涡轮",
+        "导向叶片",
+        "向心涡轮"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "缩写需追加发动机上下文。",
+      "search_queries": {
+        "en_broad": "(\"high pressure turbine\" OR \"high-pressure turbine\")",
+        "en_focused": "(\"high pressure turbine\" OR \"high-pressure turbine\" OR \"HPT\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"高压涡轮\")",
+        "zh_focused": "(\"高压涡轮\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"high pressure turbine\"|\"high-pressure turbine\"|\"HPT\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/部件构型/T079_高压涡轮"
+    },
+    {
+      "task_id": "T080",
+      "excel_row": 112,
+      "domain": "涡轮",
+      "topic": "部件构型",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "低压涡轮",
+          "aliases": []
+        },
+        "en": {
+          "primary": "low pressure turbine",
+          "aliases": [
+            "low-pressure turbine",
+            "LPT"
+          ],
+          "abbreviation": "LPT"
+        }
+      },
+      "related_terms": [
+        "高压涡轮",
+        "导向叶片",
+        "向心涡轮"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "保留低雷诺数与转捩研究。",
+      "search_queries": {
+        "en_broad": "(\"low pressure turbine\" OR \"low-pressure turbine\")",
+        "en_focused": "(\"low pressure turbine\" OR \"low-pressure turbine\" OR \"LPT\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"低压涡轮\")",
+        "zh_focused": "(\"低压涡轮\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"low pressure turbine\"|\"low-pressure turbine\"|\"LPT\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/部件构型/T080_低压涡轮"
+    },
+    {
+      "task_id": "T081",
+      "excel_row": 113,
+      "domain": "涡轮",
+      "topic": "部件构型",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "导向叶片",
+          "aliases": [
+            "涡轮导叶"
+          ]
+        },
+        "en": {
+          "primary": "turbine vane",
+          "aliases": [
+            "nozzle guide vane",
+            "stator vane"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "高压涡轮",
+        "低压涡轮",
+        "向心涡轮"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "vane指静叶；blade常指动叶，勿默认等价。",
+      "search_queries": {
+        "en_broad": "(\"turbine vane\" OR \"nozzle guide vane\" OR \"stator vane\")",
+        "en_focused": "(\"turbine vane\" OR \"nozzle guide vane\" OR \"stator vane\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"导向叶片\" OR \"涡轮导叶\")",
+        "zh_focused": "(\"导向叶片\" OR \"涡轮导叶\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"turbine vane\"|\"nozzle guide vane\"|\"stator vane\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/部件构型/T081_导向叶片"
+    },
+    {
+      "task_id": "T082",
+      "excel_row": 114,
+      "domain": "涡轮",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "平均半径设计",
+          "aliases": [
+            "中径设计"
+          ]
+        },
+        "en": {
+          "primary": "meanline design",
+          "aliases": [
+            "mean-line design",
+            "mean radius design"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "速度三角形",
+        "反动度",
+        "级负荷系数"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "与三维叶片设计分层。",
+      "search_queries": {
+        "en_broad": "(\"meanline design\" OR \"mean-line design\" OR \"mean radius design\")",
+        "en_focused": "(\"meanline design\" OR \"mean-line design\" OR \"mean radius design\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"平均半径设计\" OR \"中径设计\")",
+        "zh_focused": "(\"平均半径设计\" OR \"中径设计\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"meanline design\"|\"mean-line design\"|\"mean radius design\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/初步设计/T082_平均半径设计"
+    },
+    {
+      "task_id": "T083",
+      "excel_row": 115,
+      "domain": "涡轮",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "通流设计",
+          "aliases": [
+            "通流分析"
+          ]
+        },
+        "en": {
+          "primary": "throughflow design",
+          "aliases": [
+            "through-flow design",
+            "throughflow analysis"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "叶型参数化",
+        "径向平衡",
+        "平均半径设计"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "包含分析与设计任务，需在文献标签中区分。",
+      "search_queries": {
+        "en_broad": "(\"throughflow design\" OR \"through-flow design\" OR \"throughflow analysis\")",
+        "en_focused": "(\"throughflow design\" OR \"through-flow design\" OR \"throughflow analysis\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"通流设计\" OR \"通流分析\")",
+        "zh_focused": "(\"通流设计\" OR \"通流分析\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"throughflow design\"|\"through-flow design\"|\"throughflow analysis\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/初步设计/T083_通流设计"
+    },
+    {
+      "task_id": "T084",
+      "excel_row": 116,
+      "domain": "涡轮",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "速度三角形",
+          "aliases": []
+        },
+        "en": {
+          "primary": "velocity triangle",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "平均半径设计",
+        "通流设计",
+        "反动度"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "标注绝对速度、相对速度和圆周速度。",
+      "search_queries": {
+        "en_broad": "(\"velocity triangle\")",
+        "en_focused": "(\"velocity triangle\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"速度三角形\")",
+        "zh_focused": "(\"速度三角形\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"velocity triangle\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/初步设计/T084_速度三角形"
+    },
+    {
+      "task_id": "T085",
+      "excel_row": 117,
+      "domain": "涡轮",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "反动度",
+          "aliases": []
+        },
+        "en": {
+          "primary": "degree of reaction",
+          "aliases": [
+            "reaction degree"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "平均半径设计",
+        "通流设计",
+        "速度三角形"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "具体定义与焓降口径按原文保存。",
+      "search_queries": {
+        "en_broad": "(\"degree of reaction\" OR \"reaction degree\")",
+        "en_focused": "(\"degree of reaction\" OR \"reaction degree\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"反动度\")",
+        "zh_focused": "(\"反动度\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"degree of reaction\"|\"reaction degree\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/初步设计/T085_反动度"
+    },
+    {
+      "task_id": "T086",
+      "excel_row": 118,
+      "domain": "涡轮",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "级负荷系数",
+          "aliases": [
+            "负荷系数"
+          ]
+        },
+        "en": {
+          "primary": "stage loading coefficient",
+          "aliases": [
+            "loading coefficient"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "平均半径设计",
+        "流量系数",
+        "通流设计"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "系数定义和速度基准不能省略。",
+      "search_queries": {
+        "en_broad": "(\"stage loading coefficient\" OR \"loading coefficient\")",
+        "en_focused": "(\"stage loading coefficient\" OR \"loading coefficient\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"级负荷系数\" OR \"负荷系数\")",
+        "zh_focused": "(\"级负荷系数\" OR \"负荷系数\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"stage loading coefficient\"|\"loading coefficient\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/初步设计/T086_级负荷系数"
+    },
+    {
+      "task_id": "T087",
+      "excel_row": 119,
+      "domain": "涡轮",
+      "topic": "叶型与叶栅",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "涡轮叶栅",
+          "aliases": []
+        },
+        "en": {
+          "primary": "turbine cascade",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "叶型参数化",
+        "叶片积叠",
+        "叶片弯掠"
+      ],
+      "collection_focus": "叶型与叶栅\n几何设计、参数化与叶栅试验",
+      "retrieval_boundary": "覆盖直列和环形叶栅。",
+      "search_queries": {
+        "en_broad": "(\"turbine cascade\")",
+        "en_focused": "(\"turbine cascade\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"涡轮叶栅\")",
+        "zh_focused": "(\"涡轮叶栅\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"turbine cascade\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/叶型与叶栅/T087_涡轮叶栅"
+    },
+    {
+      "task_id": "T088",
+      "excel_row": 120,
+      "domain": "涡轮",
+      "topic": "叶型与叶栅",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "叶型参数化",
+          "aliases": [
+            "叶型参数化建模"
+          ]
+        },
+        "en": {
+          "primary": "blade profile parameterization",
+          "aliases": [
+            "blade profile parametrization"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "通流设计",
+        "逆向设计",
+        "参数化几何建模"
+      ],
+      "collection_focus": "叶型与叶栅\n几何设计、参数化与叶栅试验",
+      "retrieval_boundary": "跨压气机与涡轮。",
+      "search_queries": {
+        "en_broad": "(\"blade profile parameterization\" OR \"blade profile parametrization\")",
+        "en_focused": "(\"blade profile parameterization\" OR \"blade profile parametrization\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"叶型参数化\" OR \"叶型参数化建模\")",
+        "zh_focused": "(\"叶型参数化\" OR \"叶型参数化建模\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"blade profile parameterization\"|\"blade profile parametrization\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "涡轮/叶型与叶栅/T088_叶型参数化"
+    },
+    {
+      "task_id": "T089",
+      "excel_row": 121,
+      "domain": "涡轮",
+      "topic": "叶型与叶栅",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "叶片积叠",
+          "aliases": [
+            "积叠线"
+          ]
+        },
+        "en": {
+          "primary": "blade stacking",
+          "aliases": [
+            "stacking line"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "叶片弯掠",
+        "涡轮叶栅",
+        "叶型参数化"
+      ],
+      "collection_focus": "叶型与叶栅\n几何设计、参数化与叶栅试验",
+      "retrieval_boundary": "积叠线是几何对象，作为检索扩展词。",
+      "search_queries": {
+        "en_broad": "(\"blade stacking\" OR \"stacking line\")",
+        "en_focused": "(\"blade stacking\" OR \"stacking line\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"叶片积叠\" OR \"积叠线\")",
+        "zh_focused": "(\"叶片积叠\" OR \"积叠线\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"blade stacking\"|\"stacking line\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "涡轮/叶型与叶栅/T089_叶片积叠"
+    },
+    {
+      "task_id": "T090",
+      "excel_row": 122,
+      "domain": "涡轮",
+      "topic": "叶型与叶栅",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "叶片弯掠",
+          "aliases": [
+            "叶片弯曲与掠形"
+          ]
+        },
+        "en": {
+          "primary": "blade lean and sweep",
+          "aliases": [
+            "blade lean",
+            "blade sweep"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "叶片积叠",
+        "涡轮叶栅",
+        "叶型参数化"
+      ],
+      "collection_focus": "叶型与叶栅\n几何设计、参数化与叶栅试验",
+      "retrieval_boundary": "lean与sweep分别标注，二者不是同义词。",
+      "search_queries": {
+        "en_broad": "(\"blade lean and sweep\" OR \"blade lean\" OR \"blade sweep\")",
+        "en_focused": "(\"blade lean and sweep\" OR \"blade lean\" OR \"blade sweep\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"叶片弯掠\" OR \"叶片弯曲与掠形\")",
+        "zh_focused": "(\"叶片弯掠\" OR \"叶片弯曲与掠形\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"blade lean and sweep\"|\"blade lean\"|\"blade sweep\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "涡轮/叶型与叶栅/T090_叶片弯掠"
+    },
+    {
+      "task_id": "T091",
+      "excel_row": 123,
+      "domain": "涡轮",
+      "topic": "流动与损失",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "叶型损失",
+          "aliases": []
+        },
+        "en": {
+          "primary": "profile loss",
+          "aliases": [
+            "profile losses"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "叶片表面粗糙度",
+        "二次流",
+        "端壁造型"
+      ],
+      "collection_focus": "流动与损失\n流动机理、损失预测与控制",
+      "retrieval_boundary": "损失分解口径需保留。",
+      "search_queries": {
+        "en_broad": "(\"profile loss\" OR \"profile losses\")",
+        "en_focused": "(\"profile loss\" OR \"profile losses\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"叶型损失\")",
+        "zh_focused": "(\"叶型损失\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"profile loss\"|\"profile losses\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/流动与损失/T091_叶型损失"
+    },
+    {
+      "task_id": "T092",
+      "excel_row": 124,
+      "domain": "涡轮",
+      "topic": "流动与损失",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "二次流",
+          "aliases": []
+        },
+        "en": {
+          "primary": "secondary flow",
+          "aliases": [
+            "secondary flows"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "端壁造型",
+        "叶型损失",
+        "叶顶间隙"
+      ],
+      "collection_focus": "流动与损失\n流动机理、损失预测与控制",
+      "retrieval_boundary": "与二次空气系统不是同一概念。",
+      "search_queries": {
+        "en_broad": "(\"secondary flow\" OR \"secondary flows\")",
+        "en_focused": "(\"secondary flow\" OR \"secondary flows\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"二次流\")",
+        "zh_focused": "(\"二次流\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"secondary flow\"|\"secondary flows\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "涡轮/流动与损失/T092_二次流"
+    },
+    {
+      "task_id": "T093",
+      "excel_row": 125,
+      "domain": "涡轮",
+      "topic": "流动与损失",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "端壁造型",
+          "aliases": [
+            "非轴对称端壁"
+          ]
+        },
+        "en": {
+          "primary": "endwall contouring",
+          "aliases": [
+            "end-wall contouring",
+            "non-axisymmetric endwall"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "二次流",
+        "叶型损失",
+        "叶顶间隙"
+      ],
+      "collection_focus": "流动与损失\n流动机理、损失预测与控制",
+      "retrieval_boundary": "非轴对称端壁属于具体方案。",
+      "search_queries": {
+        "en_broad": "(\"endwall contouring\" OR \"end-wall contouring\" OR \"non-axisymmetric endwall\")",
+        "en_focused": "(\"endwall contouring\" OR \"end-wall contouring\" OR \"non-axisymmetric endwall\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"端壁造型\" OR \"非轴对称端壁\")",
+        "zh_focused": "(\"端壁造型\" OR \"非轴对称端壁\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"endwall contouring\"|\"end-wall contouring\"|\"non-axisymmetric endwall\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/流动与损失/T093_端壁造型"
+    },
+    {
+      "task_id": "T094",
+      "excel_row": 126,
+      "domain": "涡轮",
+      "topic": "流动与损失",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "叶顶间隙",
+          "aliases": [
+            "叶尖间隙"
+          ]
+        },
+        "en": {
+          "primary": "tip clearance",
+          "aliases": [
+            "blade tip clearance"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "叶尖泄漏流",
+        "主动间隙控制",
+        "叶型损失"
+      ],
+      "collection_focus": "流动与损失\n流动机理、损失预测与控制",
+      "retrieval_boundary": "间隙是几何量，泄漏流是流动现象。",
+      "search_queries": {
+        "en_broad": "(\"tip clearance\" OR \"blade tip clearance\")",
+        "en_focused": "(\"tip clearance\" OR \"blade tip clearance\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"叶顶间隙\" OR \"叶尖间隙\")",
+        "zh_focused": "(\"叶顶间隙\" OR \"叶尖间隙\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"tip clearance\"|\"blade tip clearance\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "涡轮/流动与损失/T094_叶顶间隙"
+    },
+    {
+      "task_id": "T095",
+      "excel_row": 127,
+      "domain": "涡轮",
+      "topic": "流动与损失",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "激波损失",
+          "aliases": []
+        },
+        "en": {
+          "primary": "shock loss",
+          "aliases": [
+            "shock losses"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "叶型损失",
+        "二次流",
+        "端壁造型"
+      ],
+      "collection_focus": "流动与损失\n流动机理、损失预测与控制",
+      "retrieval_boundary": "跨声速叶栅相关。",
+      "search_queries": {
+        "en_broad": "(\"shock loss\" OR \"shock losses\")",
+        "en_focused": "(\"shock loss\" OR \"shock losses\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"激波损失\")",
+        "zh_focused": "(\"激波损失\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"shock loss\"|\"shock losses\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/流动与损失/T095_激波损失"
+    },
+    {
+      "task_id": "T096",
+      "excel_row": 128,
+      "domain": "涡轮",
+      "topic": "流动与损失",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "尾迹干涉",
+          "aliases": [
+            "尾迹扫掠"
+          ]
+        },
+        "en": {
+          "primary": "wake interaction",
+          "aliases": [
+            "wake passing"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "动静干涉",
+        "叶型损失",
+        "二次流"
+      ],
+      "collection_focus": "流动与损失\n流动机理、损失预测与控制",
+      "retrieval_boundary": "wake passing描述激励过程，作为检索扩展。",
+      "search_queries": {
+        "en_broad": "(\"wake interaction\" OR \"wake passing\")",
+        "en_focused": "(\"wake interaction\" OR \"wake passing\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"尾迹干涉\" OR \"尾迹扫掠\")",
+        "zh_focused": "(\"尾迹干涉\" OR \"尾迹扫掠\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"wake interaction\"|\"wake passing\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/流动与损失/T096_尾迹干涉"
+    },
+    {
+      "task_id": "T097",
+      "excel_row": 129,
+      "domain": "涡轮",
+      "topic": "流动与损失",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "动静干涉",
+          "aliases": [
+            "转静干涉"
+          ]
+        },
+        "en": {
+          "primary": "rotor stator interaction",
+          "aliases": [
+            "rotor-stator interaction"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "尾迹干涉",
+        "叶片受迫响应",
+        "叶型损失"
+      ],
+      "collection_focus": "流动与损失\n流动机理、损失预测与控制",
+      "retrieval_boundary": "与纯尾迹作用范围不同。",
+      "search_queries": {
+        "en_broad": "(\"rotor stator interaction\" OR \"rotor-stator interaction\")",
+        "en_focused": "(\"rotor stator interaction\" OR \"rotor-stator interaction\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"动静干涉\" OR \"转静干涉\")",
+        "zh_focused": "(\"动静干涉\" OR \"转静干涉\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"rotor stator interaction\"|\"rotor-stator interaction\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "涡轮/流动与损失/T097_动静干涉"
+    },
+    {
+      "task_id": "T098",
+      "excel_row": 130,
+      "domain": "涡轮",
+      "topic": "流动与损失",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "热斑迁移",
+          "aliases": [
+            "热条纹迁移"
+          ]
+        },
+        "en": {
+          "primary": "hot streak migration",
+          "aliases": [
+            "hot-streak migration"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "出口温度分布",
+        "叶型损失",
+        "二次流"
+      ],
+      "collection_focus": "流动与损失\n流动机理、损失预测与控制",
+      "retrieval_boundary": "关联燃烧室出口温度分布和涡轮热负荷。",
+      "search_queries": {
+        "en_broad": "(\"hot streak migration\" OR \"hot-streak migration\")",
+        "en_focused": "(\"hot streak migration\" OR \"hot-streak migration\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"热斑迁移\" OR \"热条纹迁移\")",
+        "zh_focused": "(\"热斑迁移\" OR \"热条纹迁移\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"hot streak migration\"|\"hot-streak migration\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/流动与损失/T098_热斑迁移"
+    },
+    {
+      "task_id": "T099",
+      "excel_row": 131,
+      "domain": "涡轮",
+      "topic": "性能评价",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "涡轮特性图",
+          "aliases": [
+            "涡轮特性曲线"
+          ]
+        },
+        "en": {
+          "primary": "turbine map",
+          "aliases": [
+            "turbine performance map"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "部件匹配",
+        "涡轮膨胀比",
+        "总压损失系数"
+      ],
+      "collection_focus": "性能评价\n性能指标、计算模型与试验",
+      "retrieval_boundary": "关注膨胀比、折合流量和效率。",
+      "search_queries": {
+        "en_broad": "(\"turbine map\" OR \"turbine performance map\")",
+        "en_focused": "(\"turbine map\" OR \"turbine performance map\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"涡轮特性图\" OR \"涡轮特性曲线\")",
+        "zh_focused": "(\"涡轮特性图\" OR \"涡轮特性曲线\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"turbine map\"|\"turbine performance map\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/性能评价/T099_涡轮特性图"
+    },
+    {
+      "task_id": "T100",
+      "excel_row": 132,
+      "domain": "涡轮",
+      "topic": "性能评价",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "总压损失系数",
+          "aliases": [
+            "总压损失"
+          ]
+        },
+        "en": {
+          "primary": "total pressure loss coefficient",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "涡轮特性图",
+        "涡轮膨胀比"
+      ],
+      "collection_focus": "性能评价\n性能指标、计算模型与试验",
+      "retrieval_boundary": "不可在不同分母定义下直接换算总压恢复系数。",
+      "search_queries": {
+        "en_broad": "(\"total pressure loss coefficient\")",
+        "en_focused": "(\"total pressure loss coefficient\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"总压损失系数\" OR \"总压损失\")",
+        "zh_focused": "(\"总压损失系数\" OR \"总压损失\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"total pressure loss coefficient\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "涡轮/性能评价/T100_总压损失系数"
+    },
+    {
+      "task_id": "T263",
+      "excel_row": 133,
+      "domain": "涡轮",
+      "topic": "部件构型",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "向心涡轮",
+          "aliases": [
+            "径流向心涡轮"
+          ]
+        },
+        "en": {
+          "primary": "radial inflow turbine",
+          "aliases": [
+            "radial-inflow turbine",
+            "radial turbine"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "高压涡轮",
+        "低压涡轮",
+        "导向叶片"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"radial inflow turbine\" OR \"radial-inflow turbine\" OR \"radial turbine\")",
+        "en_focused": "(\"radial inflow turbine\" OR \"radial-inflow turbine\" OR \"radial turbine\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"向心涡轮\" OR \"径流向心涡轮\")",
+        "zh_focused": "(\"向心涡轮\" OR \"径流向心涡轮\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"radial inflow turbine\"|\"radial-inflow turbine\"|\"radial turbine\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/部件构型/T263_向心涡轮"
+    },
+    {
+      "task_id": "T264",
+      "excel_row": 134,
+      "domain": "涡轮",
+      "topic": "部件构型",
+      "priority": "P1",
+      "keywords": {
+        "zh": {
+          "primary": "动力涡轮",
+          "aliases": [
+            "自由动力涡轮"
+          ]
+        },
+        "en": {
+          "primary": "power turbine",
+          "aliases": [
+            "free power turbine"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "高压涡轮",
+        "低压涡轮",
+        "导向叶片"
+      ],
+      "collection_focus": "部件构型\n部件结构、设计方法与工作原理",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"power turbine\" OR \"free power turbine\")",
+        "en_focused": "(\"power turbine\" OR \"free power turbine\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"动力涡轮\" OR \"自由动力涡轮\")",
+        "zh_focused": "(\"动力涡轮\" OR \"自由动力涡轮\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"power turbine\"|\"free power turbine\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/部件构型/T264_动力涡轮"
+    },
+    {
+      "task_id": "T265",
+      "excel_row": 135,
+      "domain": "涡轮",
+      "topic": "初步设计",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "流量系数",
+          "aliases": []
+        },
+        "en": {
+          "primary": "flow coefficient",
+          "aliases": [],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "级负荷系数",
+        "平均半径设计",
+        "通流设计"
+      ],
+      "collection_focus": "初步设计\n初步设计方法、参数选择与算例",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"flow coefficient\")",
+        "en_focused": "(\"flow coefficient\") AND (\"compressor\" OR \"fan\" OR \"turbine\" OR \"turbomachinery\")",
+        "zh_broad": "(\"流量系数\")",
+        "zh_focused": "(\"流量系数\") AND (\"压气机\" OR \"风扇\" OR \"涡轮\" OR \"叶轮机械\")",
+        "ntrs_focused": "(\"flow coefficient\")+(\"compressor\"|\"fan\"|\"turbine\"|\"turbomachinery\")"
+      },
+      "output_subdir": "涡轮/初步设计/T265_流量系数"
+    },
+    {
+      "task_id": "T266",
+      "excel_row": 136,
+      "domain": "涡轮",
+      "topic": "性能评价",
+      "priority": "P0",
+      "keywords": {
+        "zh": {
+          "primary": "涡轮膨胀比",
+          "aliases": [
+            "涡轮落压比"
+          ]
+        },
+        "en": {
+          "primary": "turbine expansion ratio",
+          "aliases": [
+            "turbine pressure ratio"
+          ],
+          "abbreviation": ""
+        }
+      },
+      "related_terms": [
+        "涡轮特性图",
+        "总压损失系数"
+      ],
+      "collection_focus": "性能评价\n性能指标、计算模型与试验",
+      "retrieval_boundary": "新增检索种子，依据试采结果校订译名与扩展范围。",
+      "search_queries": {
+        "en_broad": "(\"turbine expansion ratio\" OR \"turbine pressure ratio\")",
+        "en_focused": "(\"turbine expansion ratio\" OR \"turbine pressure ratio\") AND (\"turbine\" OR \"gas turbine\" OR \"turbine cascade\")",
+        "zh_broad": "(\"涡轮膨胀比\" OR \"涡轮落压比\")",
+        "zh_focused": "(\"涡轮膨胀比\" OR \"涡轮落压比\") AND (\"涡轮\" OR \"燃气轮机\" OR \"涡轮叶栅\")",
+        "ntrs_focused": "(\"turbine expansion ratio\"|\"turbine pressure ratio\")+(\"turbine\"|\"gas turbine\"|\"turbine cascade\")"
+      },
+      "output_subdir": "涡轮/性能评价/T266_涡轮膨胀比"
+    }
+  ]
+}

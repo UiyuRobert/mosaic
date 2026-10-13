@@ -1,0 +1,36 @@
+{% if task %}
+<h4>{{ task.task_id }} — {{ task.en_primary }} / {{ task.zh_primary }}</h4>
+<p class="stats-line">
+  {{ task.domain }} · {{ task.topic }} · {{ task.priority }} ·
+  status <strong>{{ task.status }}</strong>{% if task.reason %} ({{ task.reason }}){% endif %} ·
+  {{ task.candidates }} candidates · {{ task.relevant }} relevant ·
+  {{ task.pdf_count }}/{{ task.target_pdfs }} PDFs ·
+  dir <code>{{ task.output_subdir }}</code>
+</p>
+{% if papers %}
+<table>
+  <thead>
+    <tr><th>Grade</th><th>Score</th><th>Title</th><th>Year</th><th>Source</th><th>File</th></tr>
+  </thead>
+  <tbody>
+  {% for row in papers %}
+    <tr>
+      <td>{{ row.match.grade }}</td>
+      <td>{{ "%.1f"|format(row.match.score or 0) }}</td>
+      <td>
+        <a href="{{ url_for('ui.paper_detail', uid=row.paper.uid) }}">{{ row.paper.title[:90] }}</a>
+      </td>
+      <td>{{ row.paper.year or "" }}</td>
+      <td>{{ row.paper.source }}</td>
+      <td>
+        {% if row.link %}<code title="{{ row.link }}">{{ row.link.split('/')[-1][:60] }}</code>
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="stats-line"><em>No recorded matches yet.</em></p>
+{% endif %}
+{% endif %}

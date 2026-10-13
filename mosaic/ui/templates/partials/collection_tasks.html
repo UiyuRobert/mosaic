@@ -1,0 +1,36 @@
+{% if tasks %}
+<table>
+  <thead>
+    <tr>
+      <th>Task</th><th>Domain</th><th>Pri</th><th>EN term</th>
+      <th>Status</th><th>Reason</th><th>Cand</th><th>Rel</th><th>PDFs</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for t in tasks %}
+    <tr>
+      <td>{{ t.task_id }}</td>
+      <td>{{ t.domain }}</td>
+      <td>{{ t.priority }}</td>
+      <td>{{ t.en_primary }}</td>
+      <td>
+        {% set c = {'COMPLETED':'green','PARTIAL':'darkorange','METADATA_ONLY':'darkorange','PENDING':'gray'} %}
+        <mark style="background:{{ c.get(t.status, '#c0392b') }}">{{ t.status }}</mark>
+      </td>
+      <td>{{ (t.reason or '')[:24] }}</td>
+      <td>{{ t.candidates }}</td>
+      <td>{{ t.relevant }}</td>
+      <td>{{ t.pdf_count }}/{{ t.target_pdfs }}</td>
+      <td>
+        <a href="{{ url_for('ui.collection_task_detail', plan_id=plan_id, task_id=t.task_id) }}"
+           hx-get="{{ url_for('ui.collection_task_detail', plan_id=plan_id, task_id=t.task_id) }}"
+           hx-target="#task-detail-{{ plan_id }}" hx-swap="innerHTML">detail</a>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div id="task-detail-{{ plan_id }}"></div>
+{% else %}
+<p class="stats-line"><em>No task state recorded yet — run the plan.</em></p>
+{% endif %}
