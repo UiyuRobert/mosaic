@@ -184,6 +184,12 @@ def ensure_client(cfg: dict, *, state_dir: Path | None = None) -> Aria2Client | 
     session.touch(exist_ok=True)
 
     port = _free_port(_port_of(rpc_url))
+    if port is None:
+        log.warning(
+            "no free loopback port near %d — aria2 daemon cannot be started",
+            _port_of(rpc_url),
+        )
+        return None
     if port != _port_of(rpc_url):
         rpc_url = f"http://127.0.0.1:{port}/jsonrpc"
         client = Aria2Client(rpc_url, secret)
@@ -333,13 +339,15 @@ def _port_of(rpc_url: str) -> int:
     return port or 6800
 
 
-def _free_port(preferred: int, scan: int = 8) -> int:
+def _free_port(preferred: int, scan: int = 32) -> int | None:
     """Return *preferred* when it is free, else the first free port after it.
 
     A foreign listener on the default port (a stale daemon started by
     another tool, or an orphaned aria2c whose secret we never knew) must
     not wedge the managed-daemon path — spawning on a nearby free port
     keeps 127.0.0.1 binding without killing processes we do not own.
+    Returns ``None`` when no port in the scan window is free — spawning on
+    a known-busy port would just produce an immediate bind failure.
     """
     import socket
 
@@ -355,4 +363,4 @@ def _free_port(preferred: int, scan: int = 8) -> int:
                         port,
                     )
                 return port
-    return preferred  # last resort: let spawn fail and be reported
+    return None

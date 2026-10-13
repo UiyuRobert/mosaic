@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sqlite3
 import threading
 import time
 import uuid
@@ -32,11 +33,13 @@ from mosaic.downloader import (
     _fetch,
     _is_doi_url,
     _quick_pdf_check,
+    _try_browser_download,
+    download_still_valid,
     host_of,
 )
 from mosaic.errors import TRANSIENT_REASONS, DownloadError
 from mosaic.models import Paper
-from mosaic.pdfcheck import PdfVerificationError, verify_pdf
+from mosaic.pdfcheck import PdfVerificationError, sha256_file, verify_pdf
 
 log = logging.getLogger(__name__)
 
@@ -159,12 +162,19 @@ class DownloadManager:
         self.backend = self._resolve_backend()
 
     def _reconcile(self) -> None:
-        """Requeue jobs left in non-terminal states by a previous run."""
+        """Requeue jobs left in non-terminal states by a previous run.
+
+        aria2 jobs keep their ``aria2_gid``: the daemon often outlives the
+        MOSAIC process, so the transfer may still be running — ``_start_aria2``
+        re-attaches to a live GID instead of double-submitting the same URL
+        to the same ``.part`` file.
+        """
         for job in self.cache.list_jobs(status=list(ACTIVE), limit=10_000):
+            keep_gid = job.get("backend") == "aria2" and job.get("aria2_gid")
             self.cache.update_job(
                 job["job_id"],
                 status="QUEUED",
-                aria2_gid=None,
+                aria2_gid=job.get("aria2_gid") if keep_gid else None,
                 last_error=(job.get("last_error") or "") + " [requeued on startup]",
             )
 
@@ -174,8 +184,13 @@ class DownloadManager:
         """Create QUEUED jobs for *papers*; returns job_ids.
 
         Papers are persisted first so the queue survives restarts and alias
-        resolution works. Papers with a verified prior download are skipped
+        resolution works. A paper already in-flight — under this or an alias
+        UID — is not enqueued again; its existing job_id is returned instead,
+        so a second click "joins" the running download rather than
+        duplicating it. Papers with a verified prior download are skipped
         entirely (no job created) — matching the ``--download`` skip logic.
+        A partial unique index on ``download_jobs(paper_uid)`` makes the
+        one-active-job guarantee hold across processes, not just threads.
         """
         dl_dir = Path(self.cfg["download_dir"])
         pattern = self.cfg.get("filename_pattern", "{year}_{source}_{author}_{title}")
@@ -183,21 +198,39 @@ class DownloadManager:
         # Resolve the backend once per batch so job stamps match reality.
         if self.backend in ("aria2", "auto"):
             self._ensure_aria2()
+        # Snapshot active jobs once for the whole batch: alias-aware dedup
+        # and destination reservation both read this set.
+        active = self.cache.list_jobs(status=[*ACTIVE, "PAUSED"], limit=10_000)
+        active_by_uid: dict[str, dict] = {}
+        reserved_dests: set[str] = set()
+        for j in active:
+            active_by_uid.setdefault(j["paper_uid"], j)
+            if j.get("destination"):
+                reserved_dests.add(j["destination"])
         job_ids: list[str] = []
         for paper in papers:
             self.cache.save(paper)
+            canonical = self.cache.resolve_uid(paper.uid)
+            hit_uids = {canonical} | {self.cache.resolve_uid(ident) for ident in paper.identifiers}
+            existing = next((active_by_uid[u] for u in hit_uids if u in active_by_uid), None)
+            if existing is not None:
+                job_ids.append(existing["job_id"])
+                continue
             if skip_existing:
                 rec = self.cache.get_download(paper.uid)
-                if (
-                    rec
-                    and rec["status"] == "ok"
-                    and rec["local_path"]
-                    and Path(rec["local_path"]).exists()
-                    and _quick_pdf_check(Path(rec["local_path"]))
-                ):
+                if rec and rec["status"] == "ok" and download_still_valid(rec):
                     continue
             job_id = uuid.uuid4().hex[:16]
             dest = _destination_for(paper, dl_dir, pattern)
+            if str(dest) in reserved_dests:
+                # Reserved by another *queued* job (nothing on disk yet, so
+                # dedupe_path can't see it) — generate a __N variant ourselves.
+                for i in range(2, 1000):
+                    candidate = dest.with_name(f"{dest.stem}__{i}{dest.suffix}")
+                    if str(candidate) not in reserved_dests and not candidate.exists():
+                        dest = candidate
+                        break
+            reserved_dests.add(str(dest))
             # Cheap candidates only (source-supplied URLs). Unpaywall
             # resolution is deferred to the worker so enqueue stays fast.
             candidates = self._cheap_candidates(paper)
@@ -209,17 +242,25 @@ class DownloadManager:
                 ),
                 None,
             )
-            self.cache.enqueue_job(
-                {
-                    "job_id": job_id,
-                    "paper_uid": paper.uid,
-                    "url": first,
-                    "backend": self._effective_backend(),
-                    "destination": str(dest),
-                    "host": host_of(first) if first else "",
-                    "candidates_json": json.dumps([c.to_dict() for c in candidates]),
-                }
-            )
+            try:
+                self.cache.enqueue_job(
+                    {
+                        "job_id": job_id,
+                        "paper_uid": canonical,
+                        "url": first,
+                        "backend": self._effective_backend(),
+                        "destination": str(dest),
+                        "host": host_of(first) if first else "",
+                        "candidates_json": json.dumps([c.to_dict() for c in candidates]),
+                    }
+                )
+            except sqlite3.IntegrityError:
+                # Another process won the enqueue race — join its job.
+                winner = self.cache.active_job_for_uids({canonical})
+                if winner is not None:
+                    job_ids.append(winner["job_id"])
+                continue
+            active_by_uid[canonical] = {"job_id": job_id, "paper_uid": canonical}
             job_ids.append(job_id)
         return job_ids
 
@@ -533,6 +574,11 @@ class DownloadManager:
                 if e.reason == "cancelled":
                     raise
                 continue
+        # Last resort — parity with the old sequential pipeline: a saved
+        # authenticated browser session can reach paywalled PDFs no plain
+        # URL candidate can.
+        if _try_browser_download(paper, dest):
+            return str(dest), ""
         raise last
 
     def _native_done(self, job_id: str, future: Future) -> None:
@@ -553,7 +599,7 @@ class DownloadManager:
             return
 
         # _fetch already verified + renamed; record final state.
-        self.cache.set_download(job.get("paper_uid", ""), dest, "ok")
+        self._record_complete(job.get("paper_uid", ""), dest)
         self.cache.update_job(
             job_id,
             status="COMPLETED",
@@ -591,7 +637,11 @@ class DownloadManager:
         if old_gid:
             try:
                 st = self._aria2.tell_status(old_gid)
-                if st.get("status") in ("active", "waiting", "paused"):
+            except Aria2Error:
+                st = None  # gid forgotten by daemon — fall through to addUri
+            if st is not None:
+                status = st.get("status")
+                if status in ("active", "waiting", "paused"):
                     self._mark_host_start(job.get("host") or "")
                     with self._lock:
                         self._inflight[job_id] = {
@@ -599,14 +649,26 @@ class DownloadManager:
                             "host": job.get("host") or "",
                         }
                     self.cache.update_job(job_id, status="DOWNLOADING")
-                    if st.get("status") == "paused":
+                    if status == "paused":
                         try:
                             self._aria2.unpause(old_gid)
                         except Aria2Error:
                             pass
                     return
-            except Aria2Error:
-                pass  # gid forgotten by daemon — fall through to addUri
+                if status == "complete":
+                    # The daemon finished while we were away — verify the
+                    # .part file and archive it, don't fetch again.
+                    self._mark_host_start(job.get("host") or "")
+                    with self._lock:
+                        self._inflight[job_id] = {
+                            "gid": old_gid,
+                            "host": job.get("host") or "",
+                        }
+                    self.cache.update_job(job_id, status="DOWNLOADING")
+                    self._finish_aria2(job, st)
+                    return
+                # error / removed / unknown → stale gid; clear and resubmit.
+                self.cache.update_job(job_id, aria2_gid=None)
 
         url = job.get("url")
         if not url:
@@ -672,6 +734,33 @@ class DownloadManager:
             job_id = job["job_id"]
             if status in ("active", "waiting"):
                 nbytes = int(st.get("completedLength") or 0)
+                total = int(st.get("totalLength") or 0)
+                # aria2 has no per-file size cap — enforce max_file_mb here
+                # so an oversized/aborted-blob transfer cannot fill the disk.
+                max_bytes = int(self.dl_cfg.get("max_file_mb", 300)) * 1024 * 1024
+                if (total and total > max_bytes) or nbytes > max_bytes:
+                    log.warning(
+                        "job %s exceeds max_file_mb (%d > %d bytes) — aborting gid",
+                        job_id,
+                        total or nbytes,
+                        max_bytes,
+                    )
+                    try:
+                        self._aria2.remove(job["aria2_gid"])
+                    except Exception:
+                        pass
+                    with self._lock:
+                        inflight = self._inflight.pop(job_id, {}) or {}
+                    self._unmark_host(inflight.get("host") or job.get("host") or "")
+                    self._progress.pop(job_id, None)
+                    self._handle_failure(
+                        job,
+                        DownloadError(
+                            "too_large",
+                            f"file exceeds {max_bytes} byte limit",
+                        ),
+                    )
+                    continue
                 prev_bytes, _t = self._progress.get(job_id, (-1, 0.0))
                 if nbytes != prev_bytes:
                     self._progress[job_id] = (nbytes, time.time())
@@ -750,9 +839,23 @@ class DownloadManager:
         except DownloadError as e:
             self._handle_failure(job, e)
 
+    def _record_complete(self, paper_uid: str, dest: str) -> None:
+        """Store the completed download with its integrity fingerprint."""
+        path = Path(dest)
+        try:
+            self.cache.set_download(
+                paper_uid,
+                dest,
+                "ok",
+                size_bytes=path.stat().st_size,
+                sha256=sha256_file(path),
+            )
+        except OSError:
+            self.cache.set_download(paper_uid, dest, "ok")
+
     def _complete(self, job: dict, dest: str) -> None:
         self._note_host_ok(job.get("host") or host_of(job.get("url") or ""))
-        self.cache.set_download(job.get("paper_uid", ""), dest, "ok")
+        self._record_complete(job.get("paper_uid", ""), dest)
         self.cache.update_job(
             job["job_id"],
             status="COMPLETED",

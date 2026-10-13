@@ -12,13 +12,13 @@ class TestIsAvailable:
         from mosaic.pdf import is_available
 
         mock_fitz = MagicMock()
-        with patch.dict("sys.modules", {"fitz": mock_fitz}):
+        with patch.dict("sys.modules", {"pymupdf": mock_fitz}):
             assert is_available() is True
 
     def test_returns_false_when_fitz_missing(self):
         from mosaic.pdf import is_available
 
-        with patch.dict("sys.modules", {"fitz": None}):
+        with patch.dict("sys.modules", {"pymupdf": None, "fitz": None}):
             assert is_available() is False
 
 
@@ -39,7 +39,7 @@ class TestExtractText:
         doc = self._make_mock_doc(["Page one text.", "Page two text."])
         mock_fitz = MagicMock()
         mock_fitz.open.return_value = doc
-        with patch.dict("sys.modules", {"fitz": mock_fitz}):
+        with patch.dict("sys.modules", {"pymupdf": mock_fitz}):
             result = extract_text("/some/file.pdf")
         assert "Page one text." in result
         assert "Page two text." in result
@@ -50,7 +50,7 @@ class TestExtractText:
         doc = self._make_mock_doc([], encrypted=True)
         mock_fitz = MagicMock()
         mock_fitz.open.return_value = doc
-        with patch.dict("sys.modules", {"fitz": mock_fitz}):
+        with patch.dict("sys.modules", {"pymupdf": mock_fitz}):
             result = extract_text("/encrypted.pdf")
         assert result == ""
 
@@ -59,13 +59,13 @@ class TestExtractText:
 
         mock_fitz = MagicMock()
         mock_fitz.open.side_effect = RuntimeError("corrupt PDF")
-        with patch.dict("sys.modules", {"fitz": mock_fitz}):
+        with patch.dict("sys.modules", {"pymupdf": mock_fitz}):
             result = extract_text("/corrupt.pdf")
         assert result == ""
 
     def test_missing_fitz_raises_import_error(self):
         from mosaic.pdf import extract_text
 
-        with patch.dict("sys.modules", {"fitz": None}):
+        with patch.dict("sys.modules", {"pymupdf": None, "fitz": None}):
             with pytest.raises(ImportError, match="pymupdf"):
                 extract_text("/some/file.pdf")

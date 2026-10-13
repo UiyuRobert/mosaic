@@ -29,6 +29,7 @@ from mosaic.pdfcheck import (
     dedupe_path,
     is_safe_url,
     sanitize_filename,
+    sha256_file,
     verify_pdf,
 )
 from mosaic.sources import unpaywall
@@ -60,12 +61,10 @@ def download(
     allow_private = dl_cfg.get("allow_private_hosts", False)
 
     rec = cache.get_download(paper.uid)
-    if rec and rec["status"] == "ok" and rec["local_path"]:
-        existing = Path(rec["local_path"])
-        if existing.exists() and _quick_pdf_check(existing):
-            return rec["local_path"]
-        # status said ok but file is gone or not a real PDF — fall through
-        # and re-download rather than trusting the stale record.
+    if rec and rec["status"] == "ok" and rec["local_path"] and download_still_valid(rec):
+        return rec["local_path"]
+    # status said ok but the file is gone or fails integrity — fall
+    # through and re-download rather than trusting the stale record.
 
     dest_dir = Path(download_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -88,42 +87,61 @@ def download(
         except Exception:
             log.debug("Candidate %s failed", cand.download_url, exc_info=True)
             continue
-        cache.set_download(paper.uid, str(dest), "ok")
+        _set_download_ok(cache, paper.uid, dest)
         return str(dest)
 
     # ── browser session (authenticated sources) ──────────────────────────────
-    landing_url = paper.url or (f"https://doi.org/{paper.doi}" if paper.doi else None)
-    if landing_url:
-        try:
-            import asyncio
-
-            from mosaic.auth import browser_download, find_session_for_url, list_sessions
-
-            # Resolve HTTP redirects so domain matching works for known publisher
-            # URLs. For doi.org → linkinghub → sciencedirect chains the final JS
-            # redirect is only followable by a real browser, so when direct
-            # matching still fails we fall back to trying every saved session —
-            # the browser will follow the full chain including JS redirects.
-            resolved_url = _resolve_redirect(landing_url)
-            session = find_session_for_url(resolved_url)
-            sessions_to_try = [session] if session else [s["name"] for s in list_sessions()]
-
-            async def _try_sessions() -> bool:
-                for s in sessions_to_try:
-                    if await browser_download(resolved_url, str(dest), s):
-                        return True
-                return False
-
-            if asyncio.run(_try_sessions()):
-                if _quick_pdf_check(Path(dest)):
-                    cache.set_download(paper.uid, str(dest), "ok")
-                    return str(dest)
-                last_error = "invalid_pdf"
-        except Exception:
-            log.debug("Browser session download failed for %s", landing_url, exc_info=True)
+    if _try_browser_download(paper, dest):
+        _set_download_ok(cache, paper.uid, dest)
+        return str(dest)
 
     cache.set_download(paper.uid, "", f"error: {last_error}")
     return None
+
+
+def _set_download_ok(cache: Cache, uid: str, dest: Path) -> None:
+    """Record a completed download with its integrity fingerprint."""
+    try:
+        cache.set_download(
+            uid, str(dest), "ok", size_bytes=dest.stat().st_size, sha256=sha256_file(dest)
+        )
+    except OSError:
+        cache.set_download(uid, str(dest), "ok")
+
+
+def _try_browser_download(paper: Paper, dest: Path) -> bool:
+    """Last-resort fetch via a saved authenticated browser session.
+
+    Returns True when a session produced a plausible PDF at *dest*.
+    """
+    landing_url = paper.url or (f"https://doi.org/{paper.doi}" if paper.doi else None)
+    if not landing_url:
+        return False
+    try:
+        import asyncio
+
+        from mosaic.auth import browser_download, find_session_for_url, list_sessions
+
+        # Resolve HTTP redirects so domain matching works for known publisher
+        # URLs. For doi.org → linkinghub → sciencedirect chains the final JS
+        # redirect is only followable by a real browser, so when direct
+        # matching still fails we fall back to trying every saved session —
+        # the browser will follow the full chain including JS redirects.
+        resolved_url = _resolve_redirect(landing_url)
+        session = find_session_for_url(resolved_url)
+        sessions_to_try = [session] if session else [s["name"] for s in list_sessions()]
+
+        async def _try_sessions() -> bool:
+            for s in sessions_to_try:
+                if await browser_download(resolved_url, str(dest), s):
+                    return True
+            return False
+
+        if asyncio.run(_try_sessions()) and _quick_pdf_check(Path(dest)):
+            return True
+    except Exception:
+        log.debug("Browser session download failed for %s", landing_url, exc_info=True)
+    return False
 
 
 def _candidates_for(paper: Paper, unpaywall_email: str) -> list[PDFCandidate]:
@@ -207,6 +225,40 @@ def _quick_pdf_check(path: Path) -> bool:
             return f.read(5) == b"%PDF-"
     except OSError:
         return False
+
+
+def download_still_valid(rec) -> bool:
+    """Decide whether a recorded ``ok`` download can still be trusted.
+
+    Stronger than :func:`_quick_pdf_check`: verifies the file exists, that
+    its size matches the recorded ``size_bytes`` (v3+ records), and that its
+    SHA-256 matches the recorded digest when present. Legacy records
+    without integrity fields fall back to the ``%PDF-`` header probe — so a
+    truncated/corrupted file no longer passes forever just because it kept
+    its first five bytes.
+    """
+    try:
+        rec = dict(rec)
+    except (TypeError, ValueError):
+        return False
+    local_path = rec.get("local_path") or ""
+    if not local_path:
+        return False
+    path = Path(local_path)
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return False
+    recorded_size = rec.get("size_bytes")
+    if recorded_size and recorded_size != size:
+        return False
+    recorded_hash = rec.get("sha256")
+    if recorded_hash:
+        try:
+            return sha256_file(path) == recorded_hash
+        except OSError:
+            return False
+    return _quick_pdf_check(path)
 
 
 def _destination_for(paper: Paper, dest_dir: Path, pattern: str) -> Path:

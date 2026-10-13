@@ -21,7 +21,7 @@ _DEFAULTS: dict = {
     "rate_limit_delay": 1.0,
     "filename_pattern": "{year}_{source}_{author}_{title}",
     "sources": {
-        "arxiv": {"enabled": True},
+        "arxiv": {"enabled": True, "rate_limit_delay": 3.0},
         "semantic_scholar": {"enabled": True, "api_key": ""},
         "sciencedirect": {"enabled": True, "api_key": ""},
         "doaj": {"enabled": True},
@@ -66,6 +66,8 @@ _DEFAULTS: dict = {
         "aria2_fallback_native": False,  # silently switch backend when aria2 missing
         "aria2_max_download_limit": "",  # e.g. "500K" — empty = unlimited
         "allow_private_hosts": False,  # dev/testing: permit private/loopback URLs
+        "wait_timeout": 600,  # seconds to wait for a download batch before reporting
+        # still-running jobs (0 = wait forever); jobs always continue in the queue
     },
     "zotero": {"api_key": "", "user_id": 0},
     "obsidian": {
@@ -175,7 +177,7 @@ def validate(cfg: dict) -> list[str]:
         ):
             if key in dl and (not isinstance(dl[key], int) or dl[key] < 1):
                 warnings.append(f"download.{key} should be a positive int")
-        for key in ("per_host_delay",):
+        for key in ("per_host_delay", "wait_timeout"):
             if key in dl and (not isinstance(dl[key], (int, float)) or dl[key] < 0):
                 warnings.append(f"download.{key} should be a number >= 0")
         rpc = dl.get("aria2_rpc_url", "")

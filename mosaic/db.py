@@ -37,7 +37,7 @@ def _load_sqlite_vec(con: sqlite3.Connection) -> bool:
         return False
 
 
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 
 # Versioned migrations. Index `n` holds statements upgrading schema v(n+1)
 # to v(n+2). Every statement must be idempotent-safe (we tolerate
@@ -76,6 +76,24 @@ _MIGRATIONS: list[list[str]] = [
         "CREATE INDEX IF NOT EXISTS idx_dj_status ON download_jobs(status)",
         "CREATE INDEX IF NOT EXISTS idx_dj_paper ON download_jobs(paper_uid)",
         "CREATE INDEX IF NOT EXISTS idx_dj_host ON download_jobs(host)",
+    ],
+    # v2 → v3: download integrity metadata + one-active-job-per-paper guard
+    [
+        "ALTER TABLE downloads ADD COLUMN size_bytes INTEGER",
+        "ALTER TABLE downloads ADD COLUMN sha256 TEXT",
+        # Retire duplicate active jobs (keep the oldest row per paper) before
+        # the uniqueness guard goes in — pre-v3 code allowed duplicates.
+        """UPDATE download_jobs SET status='CANCELLED',
+                last_error=COALESCE(last_error,'') || ' [superseded duplicate]'
+           WHERE status IN ('QUEUED','DOWNLOADING','VERIFYING','RETRY_WAIT','PAUSED')
+             AND rowid NOT IN (
+                 SELECT MIN(rowid) FROM download_jobs
+                 WHERE status IN ('QUEUED','DOWNLOADING','VERIFYING','RETRY_WAIT','PAUSED')
+                 GROUP BY paper_uid
+             )""",
+        """CREATE UNIQUE INDEX IF NOT EXISTS idx_dj_active_uid
+           ON download_jobs(paper_uid)
+           WHERE status IN ('QUEUED','DOWNLOADING','VERIFYING','RETRY_WAIT','PAUSED')""",
     ],
 ]
 
@@ -378,15 +396,38 @@ def migrate_uid(con: sqlite3.Connection, old_uid: str, new_uid: str) -> None:
     con.commit()
 
 
-def set_download(con: sqlite3.Connection, uid: str, local_path: str, status: str) -> None:
-    con.execute(
-        """
-        INSERT INTO downloads(uid, local_path, status)
-        VALUES (?,?,?)
-        ON CONFLICT(uid) DO UPDATE SET local_path=excluded.local_path, status=excluded.status
-    """,
-        (uid, local_path, status),
-    )
+def set_download(
+    con: sqlite3.Connection,
+    uid: str,
+    local_path: str,
+    status: str,
+    size_bytes: int | None = None,
+    sha256: str | None = None,
+) -> None:
+    """Record a download outcome; integrity fields are kept when already set."""
+    try:
+        con.execute(
+            """
+            INSERT INTO downloads(uid, local_path, status, size_bytes, sha256)
+            VALUES (?,?,?,?,?)
+            ON CONFLICT(uid) DO UPDATE SET
+                local_path=excluded.local_path,
+                status=excluded.status,
+                size_bytes=COALESCE(excluded.size_bytes, downloads.size_bytes),
+                sha256=COALESCE(excluded.sha256, downloads.sha256)
+        """,
+            (uid, local_path, status, size_bytes, sha256),
+        )
+    except sqlite3.OperationalError:
+        # Pre-v3 schema without integrity columns.
+        con.execute(
+            """
+            INSERT INTO downloads(uid, local_path, status)
+            VALUES (?,?,?)
+            ON CONFLICT(uid) DO UPDATE SET local_path=excluded.local_path, status=excluded.status
+        """,
+            (uid, local_path, status),
+        )
     con.commit()
 
 
@@ -474,9 +515,23 @@ class Cache:
         with self._lock:
             return resolve_uid(self.con, uid)
 
-    def set_download(self, uid: str, local_path: str, status: str) -> None:
+    def set_download(
+        self,
+        uid: str,
+        local_path: str,
+        status: str,
+        size_bytes: int | None = None,
+        sha256: str | None = None,
+    ) -> None:
         with self._lock:
-            set_download(self.con, resolve_uid(self.con, uid), local_path, status)
+            set_download(
+                self.con,
+                resolve_uid(self.con, uid),
+                local_path,
+                status,
+                size_bytes=size_bytes,
+                sha256=sha256,
+            )
 
     def get_download(self, uid: str) -> sqlite3.Row | None:
         with self._lock:
@@ -1072,9 +1127,36 @@ class Cache:
             return cur.rowcount
 
     def jobs_for_paper(self, paper_uid: str) -> list[dict]:
+        """All jobs for a paper, including rows stored under alias UIDs."""
         with self._lock:
+            resolved = resolve_uid(self.con, paper_uid)
+            alias_rows = self.con.execute(
+                "SELECT identifier FROM paper_identifiers WHERE uid=?", (resolved,)
+            ).fetchall()
+            uids = {r[0] for r in alias_rows} | {resolved, paper_uid}
+            placeholders = ",".join("?" * len(uids))
             rows = self.con.execute(
-                "SELECT * FROM download_jobs WHERE paper_uid=? ORDER BY created_at DESC",
-                (paper_uid,),
+                f"SELECT * FROM download_jobs WHERE paper_uid IN ({placeholders}) "  # noqa: S608
+                "ORDER BY created_at DESC",
+                list(uids),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    def active_job_for_uids(self, uids: set[str]) -> dict | None:
+        """Return a non-terminal download job for any of *uids*, or None.
+
+        "Active" includes PAUSED — a paused job still owns the paper's
+        download slot, so it must block duplicate enqueues.
+        """
+        if not uids:
+            return None
+        with self._lock:
+            resolved = {resolve_uid(self.con, u) for u in uids} | uids
+            placeholders = ",".join("?" * len(resolved))
+            row = self.con.execute(
+                f"SELECT * FROM download_jobs WHERE paper_uid IN ({placeholders}) "  # noqa: S608
+                "AND status IN ('QUEUED','DOWNLOADING','VERIFYING','RETRY_WAIT','PAUSED') "
+                "LIMIT 1",
+                list(resolved),
+            ).fetchone()
+            return dict(row) if row else None

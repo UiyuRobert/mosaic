@@ -104,10 +104,10 @@ def verify_pdf(
     pages: int | None = None
     if full_check:
         try:
-            import fitz
+            import pymupdf as fitz
         except ImportError:
             try:
-                import pymupdf as fitz
+                import fitz
             except ImportError:
                 fitz = None
         if fitz is not None:

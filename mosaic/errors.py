@@ -43,7 +43,7 @@ class DownloadError(MosaicError):
     ``not_found | access_denied | rate_limited | server_error | timeout |
     dns_error | unreachable | invalid_pdf | html_response | too_small |
     empty | missing_eof | unparseable | disk_full | exists | cancelled |
-    unsafe_url``.
+    unsafe_url | too_large | no_candidates``.
     """
 
     def __init__(self, reason: str, detail: str = "", retry_after: float | None = None):

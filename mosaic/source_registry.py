@@ -113,8 +113,10 @@ def _email(cls: type[BaseSource]) -> _Factory:
 # ---------------------------------------------------------------------------
 
 
-def _make_arxiv(cfg: dict, _src: dict) -> BaseSource:
-    return ArxivSource(delay=cfg.get("rate_limit_delay", 3.0))
+def _make_arxiv(_cfg: dict, src: dict) -> BaseSource:
+    # arXiv asks for ~3 s between API requests — governed by its own
+    # source-level delay (the global rate_limit_delay is too low for arXiv).
+    return ArxivSource(delay=src.get("rate_limit_delay", 3.0))
 
 
 def _make_sciencedirect(_cfg: dict, src: dict) -> BaseSource | None:

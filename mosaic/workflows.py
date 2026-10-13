@@ -11,7 +11,6 @@ import logging
 from pathlib import Path
 
 from mosaic.db import Cache
-from mosaic.downloader import download as dl_paper
 from mosaic.errors import DownloadError
 from mosaic.models import Paper
 
@@ -29,53 +28,89 @@ def download_papers(
     cache: Cache,
     *,
     progress_cb=None,
+    outcome: dict | None = None,
+    wait_timeout: float | None = None,
 ) -> dict[str, str]:
     """Download PDFs for *papers* via the persistent download queue.
 
-    When the configured backend resolves to aria2 the jobs go through the
-    ``download_jobs`` queue (concurrency, retries, resume); the native
-    backend keeps the original sequential behaviour but gains the hardened
-    fetch→verify→rename pipeline.
+    Both backends go through ``download_jobs`` so the CLI and the web UI
+    share one pipeline: concurrency caps, retries, pause/resume, restart
+    reconciliation, and identical completion semantics.
+
+    The blocking wait is bounded by ``download.wait_timeout`` (default
+    600 s, ``0`` waits forever). Jobs still running when it elapses keep
+    going — the queue is persistent — and are reported through *outcome*.
+
+    Args:
+        papers: Papers to fetch.
+        cfg: Loaded config dict.
+        cache: Local cache instance.
+        progress_cb: Called with each job row as it reaches a terminal state.
+        outcome: Optional dict filled with ``job_ids``, ``failed`` and
+            ``pending`` counts so callers can report partial progress.
+        wait_timeout: Seconds to wait for the batch (``None`` → config).
 
     Returns:
-        A ``{paper.uid: local_path}`` mapping for successful downloads.
+        A ``{paper.uid: local_path}`` mapping keyed by the *caller's* UIDs
+        (canonical/alias UIDs are resolved back). Includes papers skipped
+        because a verified file already exists.
     """
+    from mosaic.dlqueue import TERMINAL, get_manager
+
     dl_cfg = cfg.get("download", {})
     backend = dl_cfg.get("backend", "auto")
+    manager = get_manager(cfg, cache)
+    eligible = [p for p in papers if p.pdf_url or p.doi or p.pdf_candidates or p.ntrs_id]
+    job_ids = manager.enqueue_papers(eligible)
+    if outcome is not None:
+        outcome["job_ids"] = list(job_ids)
+        outcome["manager"] = manager
+    if (
+        backend == "aria2"
+        and not manager.aria2_available
+        and not dl_cfg.get("aria2_fallback_native")
+    ):
+        # aria2 explicitly requested but unavailable — fail loudly.
+        for job_id in job_ids:
+            manager.cancel(job_id)
+        raise DownloadError(
+            "unreachable",
+            "aria2 backend selected but daemon unavailable. Install aria2 "
+            "(brew/apt install aria2) or set download.backend=native",
+        )
+    if not job_ids and not eligible:
+        return {}
+    timeout = wait_timeout
+    if timeout is None:
+        timeout = float(dl_cfg.get("wait_timeout", 600))
+    done_map = manager.wait_all(job_ids, progress_cb=progress_cb, timeout=timeout)
 
-    if backend in ("aria2", "auto"):
-        from mosaic.dlqueue import get_manager
-
-        manager = get_manager(cfg, cache)
-        eligible = [p for p in papers if p.pdf_url or p.doi or p.pdf_candidates or p.ntrs_id]
-        job_ids = manager.enqueue_papers(eligible)
-        if not job_ids:
-            return {}
-        if (
-            backend == "aria2"
-            and not manager.aria2_available
-            and not dl_cfg.get("aria2_fallback_native")
-        ):
-            # aria2 explicitly requested but unavailable — fail loudly.
-            for job_id in job_ids:
-                manager.cancel(job_id)
-            raise DownloadError(
-                "unreachable",
-                "aria2 backend selected but daemon unavailable. Install aria2 "
-                "(brew/apt install aria2) or set download.backend=native",
-            )
-        return manager.wait_all(job_ids, progress_cb=progress_cb)
-
-    email = cfg.get("unpaywall", {}).get("email", "")
-    download_dir = cfg["download_dir"]
-    pattern = cfg.get("filename_pattern", "{year}_{source}_{author}_{title}")
+    # Map results back onto the caller-facing UIDs (jobs store canonical
+    # UIDs; a paper enqueued under an alias resolves to the same file).
+    # Papers skipped because a verified download already exists are
+    # reported as successful too — the file *is* on disk.
     pdf_map: dict[str, str] = {}
-    for p in papers:
-        if not (p.pdf_url or p.doi or p.pdf_candidates):
-            continue
-        path = dl_paper(p, download_dir, cache, email, pattern, cfg=cfg)
+    for p in eligible:
+        canonical = cache.resolve_uid(p.uid)
+        path = done_map.get(canonical) or done_map.get(p.uid)
+        if not path:
+            rec = cache.get_download(p.uid)
+            if rec and rec["status"] == "ok" and rec["local_path"]:
+                path = rec["local_path"]
         if path:
             pdf_map[p.uid] = path
+    if outcome is not None:
+        failed = pending = 0
+        for jid in job_ids:
+            job = cache.get_job(jid)
+            if job is None:
+                continue
+            if job["status"] == "FAILED" or job["status"] == "CANCELLED":
+                failed += 1
+            elif job["status"] not in TERMINAL:
+                pending += 1
+        outcome["failed"] = failed
+        outcome["pending"] = pending
     return pdf_map
 
 

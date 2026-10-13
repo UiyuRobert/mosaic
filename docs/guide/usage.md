@@ -75,13 +75,21 @@ Already-downloaded files are skipped automatically.
 
 ![Search and download demo](/gifs/02_search_download.gif)
 
-## Download by DOI
+## Download by DOI or arXiv ID
 
 ```bash
+# arXiv — all of these fetch the same paper, no API key needed
+mosaic get arxiv:1706.03762
+mosaic get 1706.03762
+mosaic get hep-th/9901001
+mosaic get https://arxiv.org/abs/1706.03762v5
 mosaic get 10.48550/arXiv.1706.03762
+
+# Any other DOI
+mosaic get 10.7554/eLife.09560
 ```
 
-MOSAIC checks the local cache first. If the paper was seen in a previous search and a PDF URL is already known, the download starts immediately — no Unpaywall round-trip. Otherwise it falls back to Unpaywall, then a saved browser session.
+arXiv identifiers resolve through the official `id_list` API — real title, authors and the public PDF URL — so no Unpaywall email or API key is needed. MOSAIC checks the local cache first; if a verified file already exists it is reused instead of downloaded again. Other DOIs fall back to Crossref → Unpaywall → a saved browser session.
 
 ![Download by DOI demo](/gifs/04_doi_get.gif)
 

@@ -32,24 +32,31 @@ reasons documented below — none were skipped silently.
 
 ## Per-domain outcome (SUCCESS / total)
 
-| Domain | n | ok | dl-fail | no-pdf |
-|---|---|---|---|---|
-| 涡轮 | 26 | 16 | 5 | 5 |
-| 风扇与压气机 | 21 | 13 | 5 | 2 |
-| 燃烧室与加力燃烧室 | 24 | 9 | 10 | 4 |
-| 总体方案与性能 | 24 | 9 | 8 | 7 |
-| 仿真设计与优化 | 28 | 9 | 12 | 6 |
-| 基础学科 | 22 | 7 | 2 | 13 |
-| 机械结构与转子系统 | 27 | 4 | 12 | 11 |
-| 进气与排气 | 14 | 3 | 7 | 4 |
-| 二次空气与密封 | 11 | 3 | 3 | 5 |
-| 试验测量与工程验证 | 18 | 2 | 10 | 6 |
-| 健康监测与诊断 | 8 | 2 | 2 | 4 |
-| 强度振动与寿命 | 18 | 2 | 14 | 2 |
-| 发动机控制 | 9 | 1 | 6 | 2 |
-| 燃油滑油与辅助系统 | 16 | 1 | 5 | 10 |
-| 制造装配与修理 | 16 | 0 | 10 | 5 |
-| 材料与涂层 | 13 | 0 | 12 | 1 |
+Regenerated from `local-validation/state.sqlite` on 2026-10-13 — the earlier
+table was missing `冷却传热与热管理` and summed to 295, not 321. All 17
+domains now listed; per-status totals: SUCCESS 87, DOWNLOAD_FAILED 165,
+NO_PUBLIC_PDF 66, ACCESS_RESTRICTED 3 (Σ 321).
+
+| Domain | n | ok | dl-fail | no-pdf | restricted |
+|---|---|---|---|---|---|
+| 涡轮 | 26 | 16 | 7 | 3 | 0 |
+| 风扇与压气机 | 21 | 13 | 5 | 2 | 1 |
+| 仿真设计与优化 | 28 | 9 | 12 | 7 | 0 |
+| 总体方案与性能 | 24 | 9 | 10 | 5 | 0 |
+| 燃烧室与加力燃烧室 | 24 | 9 | 14 | 0 | 1 |
+| 基础学科 | 22 | 7 | 9 | 6 | 0 |
+| 冷却传热与热管理 | 26 | 6 | 12 | 8 | 0 |
+| 机械结构与转子系统 | 27 | 4 | 18 | 5 | 0 |
+| 进气与排气 | 14 | 3 | 9 | 2 | 0 |
+| 二次空气与密封 | 11 | 3 | 4 | 4 | 0 |
+| 强度振动与寿命 | 18 | 2 | 14 | 2 | 0 |
+| 试验测量与工程验证 | 18 | 2 | 10 | 6 | 0 |
+| 健康监测与诊断 | 8 | 2 | 2 | 4 | 0 |
+| 燃油滑油与辅助系统 | 16 | 1 | 11 | 4 | 0 |
+| 发动机控制 | 9 | 1 | 6 | 2 | 0 |
+| 制造装配与修理 | 16 | 0 | 10 | 5 | 1 |
+| 材料与涂层 | 13 | 0 | 12 | 1 | 0 |
+| **Σ** | **321** | **87** | **165** | **66** | **3** |
 
 Best coverage where the field's literature lives on open hosts
 (arXiv/HAL/Zenodo/GPPS proceedings); near-zero where it sits behind

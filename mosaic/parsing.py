@@ -112,6 +112,76 @@ def normalise_doi(doi_raw: str | None) -> str | None:
     return cleaned or None
 
 
+# ── arXiv identifiers ─────────────────────────────────────────────────────────
+
+ARXIV_DOI_PREFIX = "10.48550/arXiv."
+
+# New-style IDs: 1706.03762 · 1706.03762v5 · 2412.12345v10
+_ARXIV_NEW = re.compile(r"^\d{4}\.\d{4,5}(v\d+)?$", re.IGNORECASE)
+# Old-style IDs: hep-th/9901001 · math.GT/0309136 · cs/0501001v3
+_ARXIV_OLD = re.compile(r"^[a-z][a-z\-]*(\.[A-Z]{2})?/\d{7}(v\d+)?$")
+_ARXIV_URL = re.compile(
+    r"^https?://(?:export\.)?arxiv\.org/(?:abs|pdf)/([^\s?#/]+(?:/[^\s?#]+)?)",
+    re.IGNORECASE,
+)
+_ARXIV_PREFIX = re.compile(r"^arxiv:\s*(.+)$", re.IGNORECASE)
+
+
+def _looks_like_arxiv_id(value: str) -> bool:
+    return bool(_ARXIV_NEW.match(value) or _ARXIV_OLD.match(value))
+
+
+def parse_arxiv_id(text: str | None) -> str | None:
+    """Extract an arXiv identifier from common spellings.
+
+    Accepts: ``arxiv:1706.03762``, bare ``1706.03762`` / ``1706.03762v5``,
+    old-style ``hep-th/9901001``, ``https://arxiv.org/abs/<id>``,
+    ``https://arxiv.org/pdf/<id>``, and arXiv DOIs such as
+    ``10.48550/arXiv.1706.03762`` (plain or as a doi.org URL).
+
+    >>> parse_arxiv_id("arxiv:1706.03762")
+    '1706.03762'
+    >>> parse_arxiv_id("https://arxiv.org/abs/1706.03762v5")
+    '1706.03762v5'
+    >>> parse_arxiv_id("10.48550/arXiv.hep-th/9901001")
+    'hep-th/9901001'
+    >>> parse_arxiv_id("10.1234/other") is None
+    True
+    """
+    if not text:
+        return None
+    t = text.strip()
+    m = _ARXIV_PREFIX.match(t)
+    if m:
+        cand = m.group(1).strip()
+        return cand if _looks_like_arxiv_id(cand) else None
+    m = _ARXIV_URL.match(t)
+    if m:
+        cand = m.group(1).removesuffix(".pdf").rstrip("/")
+        return cand if _looks_like_arxiv_id(cand) else None
+    cand = normalise_doi(t) or ""
+    if cand.lower().startswith(ARXIV_DOI_PREFIX.lower()):
+        aid = cand[len(ARXIV_DOI_PREFIX) :]
+        return aid if _looks_like_arxiv_id(aid) else None
+    return t if _looks_like_arxiv_id(t) else None
+
+
+def arxiv_base_id(arxiv_id: str | None) -> str:
+    """Strip the version suffix: ``1706.03762v5`` → ``1706.03762``.
+
+    >>> arxiv_base_id("1706.03762v5")
+    '1706.03762'
+    >>> arxiv_base_id("hep-th/9901001v3")
+    'hep-th/9901001'
+    """
+    return re.sub(r"v\d+$", "", arxiv_id or "")
+
+
+def arxiv_doi(arxiv_id: str) -> str:
+    """Canonical arXiv preprint DOI for an identifier (version-stripped)."""
+    return f"{ARXIV_DOI_PREFIX}{arxiv_base_id(arxiv_id)}"
+
+
 def parse_authors_name_key(items: list[dict], key: str = "name") -> list[str]:
     """Extract author names from a list of dicts using a single key.
 

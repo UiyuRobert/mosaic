@@ -68,7 +68,10 @@ include = ["mosaic*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=mosaic --cov-report=term-missing"
+addopts = "--cov=mosaic --cov-report=term-missing -m 'not live'"
+markers = [
+    "live: real-network tests hitting public APIs (opt-in via -m live)",
+]
 
 [tool.coverage.run]
 source = ["mosaic"]

@@ -402,11 +402,21 @@ def _run_download(uid, cfg, db_path):
         if rec and rec["status"] == "ok":
             return {"ok": True, "msg": f"Already downloaded: {Path(rec['local_path']).name}"}
         return {"ok": False, "msg": "Could not find a downloadable PDF."}
-    pdf_map = manager.wait_all(job_ids, poll=0.5)
-    path = pdf_map.get(paper.uid)
+    timeout = float(cfg.get("download", {}).get("wait_timeout", 600))
+    pdf_map = manager.wait_all(job_ids, poll=0.5, timeout=timeout)
+    path = pdf_map.get(paper.uid) or pdf_map.get(cache.resolve_uid(paper.uid))
     if path:
         return {"ok": True, "msg": f"PDF saved: {Path(path).name}"}
     job = cache.get_job(job_ids[0])
+    # Still running after the wait budget → report it honestly instead of
+    # letting the htmx spinner hang forever. The job keeps going and shows
+    # up on the Downloads page.
+    if job and job["status"] not in ("COMPLETED", "FAILED", "CANCELLED"):
+        return {
+            "ok": True,
+            "msg": "Download is taking longer than expected — it keeps "
+            "running in the queue; track it on the Downloads page.",
+        }
     reason = (job or {}).get("last_error") or "no pdf found"
     return {"ok": False, "msg": f"Download failed: {reason}"}
 

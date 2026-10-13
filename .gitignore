@@ -26,6 +26,7 @@ mosaic-papers/
 
 # Local validation artifacts (real-downloaded PDFs, run state)
 local-validation/
+local-smoke/
 
 # Config (may contain API keys)
 .env

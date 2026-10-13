@@ -377,14 +377,18 @@ Full setup instructions for each feature → [Installation guide](https://szaghi
 ## Quick Start
 
 ```bash
-# 1. Set your email (enables Unpaywall PDF fallback)
+# 1. Search arXiv and download PDFs — no config or API key needed
+mosaic search "transformer architecture" --source arxiv --download
+
+# 2. Or grab a specific paper by arXiv ID / DOI
+mosaic get arxiv:1706.03762           # Attention Is All You Need
+mosaic get 10.48550/arXiv.1706.03762  # the same paper via its DOI
+
+# 3. Optional: set your email for Unpaywall fallback on other sources
 mosaic config --unpaywall-email you@example.com
 
-# 2. Optional: add an Elsevier API key to unlock ScienceDirect
+# 4. Optional: add an Elsevier API key to unlock ScienceDirect
 mosaic config --elsevier-key YOUR_KEY
-
-# 3. Search and download
-mosaic search "transformer architecture" --oa-only --download
 ```
 
 ![MOSAIC search and download demo](docs/public/gifs/02_search_download.gif)
@@ -448,13 +452,36 @@ mosaic similar 10.1038/s41586-021-03819-2 --output related.bib
 
 Uses **OpenAlex** `related_works` (always) and **Semantic Scholar** recommendations (when `ss-key` is configured). Results are deduplicated and merged — the higher citation count and richer metadata always win.
 
-### Download by DOI
+### Download by DOI or arXiv ID
 
 ```bash
+# Any of these fetches the real PDF — metadata comes from the arXiv API,
+# no Unpaywall or API key needed
+mosaic get arxiv:1706.03762
+mosaic get 1706.03762
+mosaic get hep-th/9901001
+mosaic get https://arxiv.org/abs/1706.03762v5
 mosaic get 10.48550/arXiv.1706.03762
+
+# Regular (non-arXiv) DOI — resolves via the normal candidate chain
+mosaic get 10.7554/eLife.09560
 ```
 
-Checks the local cache first — if the paper was seen in a previous search and a PDF URL is already known, downloads immediately without hitting Unpaywall.
+Checks the local cache first — if the paper was seen in a previous search and a PDF URL is already known, downloads immediately without hitting Unpaywall. Re-downloading the same paper reuses the existing verified file instead of creating duplicates.
+
+```bash
+# Pick the backend (auto picks aria2 when installed, else native)
+mosaic config --download-backend native   # pure Python — no extra tools
+mosaic config --download-backend aria2    # faster, resumable (needs aria2c)
+
+# Persistent queue — inspect / pause / resume / cancel / retry / clear
+mosaic downloads list
+mosaic downloads pause <job-id>
+mosaic downloads resume <job-id>
+mosaic downloads cancel <job-id>
+mosaic downloads retry <job-id>
+mosaic downloads clear
+```
 
 ### Bulk download from BibTeX / CSV
 

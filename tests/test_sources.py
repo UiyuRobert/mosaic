@@ -155,7 +155,7 @@ class TestArxivSource:
         assert "Ashish Vaswani" in p.authors
         assert p.year == 2017
         assert p.doi == "10.48550/arXiv.1706.03762"
-        assert p.pdf_url == "http://arxiv.org/pdf/1706.03762v5"
+        assert p.pdf_url == "https://arxiv.org/pdf/1706.03762v5"
         assert p.journal == "NeurIPS 2017"
         assert p.is_open_access is True
 

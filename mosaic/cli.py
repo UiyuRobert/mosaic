@@ -18,6 +18,7 @@ from mosaic.config import apply_api_keys
 from mosaic.db import Cache
 from mosaic.downloader import download as dl_paper
 from mosaic.errors import set_verbose_logging
+from mosaic.parsing import strip_html
 from mosaic.search import search_all
 from mosaic.services import build_filters, filter_papers, sort_by_relevance
 from mosaic.source_registry import SRC_MAP, build_sources
@@ -350,8 +351,10 @@ def search(
             )
 
     if not json_output:
+        # Source failures are user-facing errors, not debug chatter — always
+        # surface them on stderr so "No results found." can't mask a 403/503.
         for err in errors:
-            warn(f"[dark_orange]Warning:[/dark_orange] {err}")
+            typer.echo(f"Warning: {strip_html(err)[:300]}", err=True)
 
     if prefer_cache:
         rich = cache.rich_uids()
@@ -373,7 +376,18 @@ def search(
 
             for path in list(output):
                 export(papers, path)
-        _emit_json(papers, query=query, errors=errors)
+        dl_map: dict[str, str] | None = None
+        if download:
+            # --json must not swallow --download: fetch quietly and report
+            # the uid→path map inside the JSON document.
+            from mosaic.errors import DownloadError
+            from mosaic.workflows import download_papers
+
+            try:
+                dl_map = download_papers(papers, cfg, cache)
+            except DownloadError as e:
+                dl_map = {"_error": str(e)}
+        _emit_json(papers, query=query, errors=errors, downloads=dl_map)
         return
 
     if stats:
@@ -589,7 +603,16 @@ def get(
         typer.Option("--obsidian-folder", help="Override Obsidian vault subfolder for this run"),
     ] = "",
 ):
-    """Download a paper by DOI, or bulk-download all DOIs from a .bib/.csv file."""
+    """Download a paper by DOI or arXiv ID, or bulk-download DOIs from a file.
+
+    Accepted identifiers: ``10.xxxx/…`` DOIs, ``arxiv:1706.03762``, bare
+    arXiv IDs (``1706.03762``, ``1706.03762v5``, ``hep-th/9901001``),
+    ``https://arxiv.org/abs/<id>`` URLs, and arXiv DOIs
+    (``10.48550/arXiv.1706.03762``).
+
+    Exit codes: 0 = PDF on disk (or already downloaded); 1 = download
+    failed/timed out; 2 = identifier could not be parsed.
+    """
     cfg = cfg_mod.load()
     if download_dir:
         cfg["download_dir"] = download_dir
@@ -614,23 +637,44 @@ def get(
         return
 
     if doi is None:
-        rprint("[red]Provide a DOI argument or use --from <file> for bulk download.[/red]")
+        rprint("[red]Provide a DOI/arXiv argument or use --from <file> for bulk download.[/red]")
         raise typer.Exit(1)
 
-    from mosaic.models import Paper
+    paper = _resolve_get_paper(doi, cfg, cache)
+    if paper is None:
+        rprint(f"[red]Could not parse identifier: {doi!r}[/red]")
+        rprint(
+            "[dim]Supported: DOI (10.xxxx/…), arXiv ID (1706.03762, hep-th/9901001), "
+            "arxiv:<id>, https://arxiv.org/abs/<id>[/dim]"
+        )
+        raise typer.Exit(2)
+    rprint(f"[dim]{paper.title[:90]}[/dim]")
 
-    _bare = Paper(title=doi, doi=doi, source="manual")
-    paper = cache.get_by_uid(_bare.uid) or _bare
-    if paper is not _bare:
-        rprint(f"[dim]Found in local cache: {paper.title[:80]}[/dim]")
+    from mosaic.errors import DownloadError
     from mosaic.workflows import download_papers
 
-    pdf_map = download_papers([paper], cfg, cache)
+    outcome: dict = {}
+    try:
+        pdf_map = download_papers([paper], cfg, cache, outcome=outcome)
+    except DownloadError as e:
+        rprint(f"[red]{e}[/red]")
+        raise typer.Exit(1) from None
     path = pdf_map.get(paper.uid)
     if path:
-        rprint(f"[green]Saved:[/green] {path}")
+        if outcome.get("job_ids"):
+            rprint(f"[green]Saved:[/green] {path}")
+        else:
+            rprint(f"[green]Already downloaded:[/green] {path}")
+    elif outcome.get("pending"):
+        rprint(
+            "[dark_orange]Download still in progress — it continues in the "
+            "queue; track it with [bold]mosaic downloads[/bold].[/dark_orange]"
+        )
+        raise typer.Exit(1)
     else:
-        rprint("[red]Could not find a downloadable PDF for this DOI.[/red]")
+        detail = _outcome_error(cache, outcome) or "no downloadable PDF found"
+        rprint(f"[red]Could not find a downloadable PDF for {doi}.[/red] [dim]({detail})[/dim]")
+        raise typer.Exit(1)
 
     if zotero:
         pdf_map = {paper.uid: path} if path else {}
@@ -652,6 +696,81 @@ def get(
             index_papers([paper], cfg, cache, progress=False)
         except Exception:
             pass  # auto-index failures are always silent
+
+
+def _resolve_get_paper(identifier: str, cfg: dict, cache: Cache):
+    """Resolve a ``mosaic get`` argument to a Paper.
+
+    arXiv identifiers (``arxiv:…``, bare IDs, arxiv.org URLs, arXiv DOIs)
+    are looked up in the local cache, then via the arXiv ``id_list`` API;
+    when the API is unreachable a stub carrying the public ``/pdf/<id>``
+    URL is used — the identifier format is always validated first. Plain
+    DOIs check the cache, then Crossref, then fall back to a bare record
+    (Unpaywall/browser may still resolve a PDF for it). Returns ``None``
+    when the identifier cannot be recognised.
+    """
+    from mosaic.models import Paper
+    from mosaic.parsing import arxiv_base_id, arxiv_doi, normalise_doi, parse_arxiv_id
+
+    arxiv_id = parse_arxiv_id(identifier)
+    if arxiv_id:
+        stub = Paper(
+            title=identifier,
+            doi=arxiv_doi(arxiv_id),
+            arxiv_id=arxiv_id,
+            source="manual",
+        )
+        cached = (
+            cache.get_by_uid(stub.uid)
+            or cache.get_by_uid(f"arxiv:{arxiv_id}")
+            or (cache.get_by_uid(f"arxiv:{arxiv_base_id(arxiv_id)}"))
+        )
+        from mosaic.sources.arxiv import ArxivSource
+
+        try:
+            paper = ArxivSource().get_by_id(arxiv_id)
+        except Exception:
+            paper = None
+        if paper is None:
+            paper = cached or Paper(
+                title=f"arXiv {arxiv_id}",
+                doi=arxiv_doi(arxiv_id),
+                arxiv_id=arxiv_id,
+                pdf_url=f"https://arxiv.org/pdf/{arxiv_id}",
+                url=f"https://arxiv.org/abs/{arxiv_id}",
+                source="arXiv",
+                is_open_access=True,
+            )
+        cache.save(paper)
+        return paper
+
+    doi = normalise_doi(identifier)
+    if not doi or "/" not in doi or doi.startswith("10.48550/arxiv."):
+        # arXiv DOIs were handled above; anything else must look like a DOI.
+        return None
+    stub = Paper(title=doi, doi=doi, source="manual")
+    cached = cache.get_by_uid(stub.uid)
+    if cached is not None:
+        return cached
+    try:
+        from mosaic.cite import fetch_paper_by_doi
+
+        paper = fetch_paper_by_doi(doi, cfg.get("unpaywall", {}).get("email", ""))
+        cache.save(paper)
+        return paper
+    except Exception:
+        # Crossref unreachable — keep the stub: Unpaywall/browser-session
+        # candidates may still resolve a downloadable PDF.
+        return stub
+
+
+def _outcome_error(cache: Cache, outcome: dict) -> str:
+    """Best-effort failure reason from the jobs recorded in *outcome*."""
+    for jid in outcome.get("job_ids") or []:
+        job = cache.get_job(jid)
+        if job and job["status"] == "FAILED" and job.get("last_error"):
+            return job["last_error"]
+    return ""
 
 
 _CITE_STYLES = ["bibtex", "apa", "mla", "chicago", "harvard", "vancouver"]
@@ -1517,6 +1636,7 @@ def config(
             db_path,
             filename_pattern,
             rate_limit_delay is not None,
+            _dl_changed,
             _sources_changed,
             _obsidian_changed,
             _pedro_changed,
@@ -1589,6 +1709,7 @@ def _emit_json(
     query: str = "",
     seed: str | None = None,
     errors: list[str] | None = None,
+    downloads: dict | None = None,
 ) -> None:
     """Serialise *papers* as a JSON object and print to stdout."""
     import dataclasses
@@ -1608,6 +1729,8 @@ def _emit_json(
     }
     if seed is not None:
         result["seed"] = seed
+    if downloads is not None:
+        result["downloads"] = downloads
     print(_json.dumps(result, indent=2, default=str))
 
 
@@ -1679,6 +1802,10 @@ def _bulk_download(
     if skip:
         parts.append(f"[dim]{skip} skipped (no OA copy)[/dim]")
     console.print(f"\n[bold]Done:[/bold] {', '.join(parts)}")
+
+    # Same semantics as `_download_all`: any eligible failure → exit 1.
+    if fail:
+        raise typer.Exit(1)
 
     if zotero and papers_list:
         _push_to_zotero(
@@ -1892,14 +2019,16 @@ def _print_results(papers: list, show_relevance: bool = False, score_label: str 
 def _download_all(papers: list, cfg: dict, cache: Cache) -> dict[str, str]:
     """Download PDFs for *papers*. Returns a ``{paper.uid: local_path}`` map.
 
-    Uses the persistent download queue when an aria2-capable backend is
-    configured; the native backend keeps sequential behaviour.
+    All backends go through the persistent download queue — same semantics
+    as the web UI (dedup, retries, pause/resume, bounded wait). Exit
+    semantics: exits 1 when *every* eligible download failed or timed out;
+    partial success stays at 0 with the breakdown printed.
     """
     from mosaic.errors import DownloadError
     from mosaic.workflows import download_papers
 
-    ok = fail = skip = 0
     pdf_map: dict[str, str] = {}
+    outcome: dict = {}
 
     eligible = [p for p in papers if p.pdf_url or p.doi or p.pdf_candidates or p.ntrs_id]
     skip = len(papers) - len(eligible)
@@ -1919,14 +2048,27 @@ def _download_all(papers: list, cfg: dict, cache: Cache) -> dict[str, str]:
                 rprint(f"  [red]✗[/red] {job.get('last_error', 'failed')[:80]}")
 
         try:
-            pdf_map = download_papers(papers, cfg, cache, progress_cb=_on_done)
+            pdf_map = download_papers(papers, cfg, cache, progress_cb=_on_done, outcome=outcome)
         except DownloadError as e:
             rprint(f"[red]{e}[/red]")
+        prog.update(task, completed=len(eligible))
 
-    for _uid in pdf_map:
-        ok += 1
-    fail = len(eligible) - ok
-    console.print(f"\n[bold]Done:[/bold] {ok} downloaded, {fail} failed, {skip} skipped (no PDF)")
+    ok = len(pdf_map)
+    pending = outcome.get("pending", 0)
+    fail = len(eligible) - ok - pending
+    parts = [f"{ok} downloaded"]
+    if fail:
+        parts.append(f"{fail} failed")
+    if pending:
+        parts.append(f"{pending} still queued (wait timed out — see `mosaic downloads`)")
+    if skip:
+        parts.append(f"{skip} skipped (no PDF)")
+    console.print(f"\n[bold]Done:[/bold] {', '.join(parts)}")
+    # Exit semantics: 0 = every eligible paper downloaded (or nothing to
+    # download); 1 = at least one eligible download failed or is still
+    # pending after the wait — the batch is incomplete.
+    if eligible and (fail or pending):
+        raise typer.Exit(1)
     return pdf_map
 
 

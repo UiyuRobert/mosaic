@@ -47,6 +47,7 @@ mosaic search [OPTIONS] QUERY
 | `--field` | `-f` | str | `all` | Scope query to `title`, `abstract`, or `all` — tab-completes |
 | `--raw-query` | | str | | Raw query sent directly to APIs, bypasses all transforms |
 | `--output` | `-o` | path | | Save results to file (repeatable); format from extension: `.md`, `.markdown`, `.csv`, `.json`, `.bib`, `.ris` |
+| `--json` | | flag | off | Emit structured JSON to stdout instead of a table (scripting/AI-agent mode); with `--download`, a `downloads` map of `uid → local path` is included |
 | `--download-dir` | | path | config | Override PDF download directory for this run only |
 | `--sort` | | str | | Sort results: `citations`, `year`, or `relevance` — tab-completes |
 | `--stats` | | flag | off | Print per-source counts and deduplication stats |
@@ -313,10 +314,10 @@ mosaic similar 10.1038/s41586-021-03819-2 --oa-only --download
 
 ### `get`
 
-Download a paper by DOI, or bulk-download all DOIs from a BibTeX or CSV file.
+Download a paper by DOI or arXiv ID, or bulk-download all DOIs from a BibTeX or CSV file.
 
 ```
-mosaic get [OPTIONS] [DOI]
+mosaic get [OPTIONS] [IDENTIFIER]
 ```
 
 | Option | Type | Default | Description |
@@ -328,7 +329,19 @@ mosaic get [OPTIONS] [DOI]
 | `--zotero-collection` | str | | Zotero collection name (created if missing) |
 | `--zotero-local` | flag | off | Force local API even when a web API key is configured |
 
-Provide either a `DOI` positional argument (single download) or `--from <file>` (bulk download) — not both.
+Provide either an `IDENTIFIER` positional argument (single download) or `--from <file>` (bulk download) — not both.
+
+**Accepted identifier forms:**
+
+| Form | Example | Resolution path |
+|------|---------|-----------------|
+| Bare arXiv ID | `1706.03762`, `1706.03762v5`, `hep-th/9901001` | arXiv `id_list` API → PDF direct |
+| `arxiv:` prefix | `arxiv:1706.03762` | same |
+| arXiv URL | `https://arxiv.org/abs/1706.03762`, `…/pdf/1706.03762v5` | same |
+| arXiv DOI | `10.48550/arXiv.1706.03762` | same (aliases to the same record) |
+| Regular DOI | `10.7554/eLife.09560` | cache → Crossref → Unpaywall → browser session |
+
+arXiv identifiers fetch real metadata (title/authors/year) from the official `id_list` API — no Unpaywall or API key needed. Versioned IDs (`v5`) are preserved; unversioned IDs resolve to the latest version. If the arXiv API is briefly down, MOSAIC falls back to a constructed `/pdf/<id>` URL; an invalid identifier prints the supported forms and exits with code 2.
 
 **Cache-first lookup:**
 Before hitting Unpaywall or a browser session, MOSAIC checks the local cache for the DOI. If the paper was seen in a previous search and a PDF URL is already known, the download starts immediately without any network resolution step. A dim confirmation line is printed when the cache is used.
@@ -343,8 +356,14 @@ Before hitting Unpaywall or a browser session, MOSAIC checks the local cache for
 **Examples:**
 
 ```bash
-# Single DOI
+# arXiv ID — Attention Is All You Need
+mosaic get arxiv:1706.03762
+
+# arXiv DOI (same paper, same record)
 mosaic get 10.48550/arXiv.1706.03762
+
+# Old-style arXiv ID
+mosaic get hep-th/9901001
 
 # Bulk from BibTeX — download all resolvable PDFs
 mosaic get --from refs.bib
@@ -944,5 +963,8 @@ Supported extensions: `.csv`, `.json`, `.bib`, `.md`, `.markdown` — same seman
 
 | Code | Meaning |
 |------|---------|
-| `0` | Success |
-| `1` | Invalid argument or unknown source |
+| `0` | Success — every requested download completed (or there was nothing to download) |
+| `1` | Error — invalid argument, unknown source, or at least one eligible download failed / timed out |
+| `2` | `mosaic get` — identifier could not be parsed at all |
+
+A partial batch (`2 downloaded, 1 failed`) still exits `1` — the summary line always spells out the breakdown.
